@@ -111,21 +111,42 @@ def api_historial():
 @app.route("/api/csv")
 def api_csv():
     """
-    Devuelve las lecturas en CSV para descarga.
+    Devuelve las lecturas en CSV con fecha y hora separadas.
     """
     datos = obtener_ultimas(10000)
 
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(["fecha", "voltaje1", "voltaje2", "corriente1", "potencia1", "radiometro"])
+
+    # Encabezados nuevos
+    writer.writerow([
+        "Fecha",
+        "Hora",
+        "Voltaje 1 (V)",
+        "Voltaje 2 (V)",
+        "Corriente 1 (A)",
+        "Potencia 1 (W)",
+        "Radiometro (ADC)"
+    ])
+
     for d in datos:
+        # Separar fecha/hora
+        if d["fecha"]:
+            fecha_partes = d["fecha"].split(" ")
+            fecha_col = fecha_partes[0]
+            hora_col = fecha_partes[1] if len(fecha_partes) > 1 else ""
+        else:
+            fecha_col = ""
+            hora_col = ""
+
         writer.writerow([
-            d["fecha"],
+            fecha_col,
+            hora_col,
             d["voltaje1"],
             d["voltaje2"],
             d["corriente1"],
             d["potencia1"],
-            d["radiometro"],
+            d["radiometro"]
         ])
 
     csv_data = output.getvalue()
@@ -142,5 +163,6 @@ def api_csv():
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=5000)
+
 
 
