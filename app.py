@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, send_file
+from flask import Flask, request, jsonify, render_template, Response
 import sqlite3
 import os
 from datetime import datetime
@@ -111,7 +111,7 @@ def api_historial():
 @app.route("/api/csv")
 def api_csv():
     """
-    Devuelve todas las lecturas en CSV para descarga.
+    Devuelve las lecturas en CSV para descarga.
     """
     datos = obtener_ultimas(10000)
 
@@ -128,16 +128,19 @@ def api_csv():
             d["radiometro"],
         ])
 
-    output.seek(0)
-    return send_file(
-        output,
+    csv_data = output.getvalue()
+
+    return Response(
+        csv_data,
         mimetype="text/csv",
-        as_attachment=True,
-        download_name="lecturas_esp32.csv"
+        headers={
+            "Content-Disposition": "attachment; filename=lecturas_esp32.csv"
+        }
     )
 
 # ========= Arranque local =========
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=5000)
+
 
