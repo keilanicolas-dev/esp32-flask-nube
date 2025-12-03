@@ -26,6 +26,29 @@
             color: #B0BEC5;
             font-size: 14px;
         }
+        .tabs {
+            margin-top: 8px;
+        }
+        .tabs button {
+            background:#263238;
+            border:none;
+            color:#E0E0E0;
+            padding:8px 14px;
+            margin:0 4px;
+            border-radius:6px;
+            cursor:pointer;
+            font-weight:bold;
+        }
+        .tabs button.active {
+            background:#00BCD4;
+            color:#000;
+        }
+        .view {
+            display:none;
+        }
+        .view.active {
+            display:block;
+        }
         .grid {
             display: flex;
             flex-wrap: wrap;
@@ -44,97 +67,144 @@
             width: 100% !important;
             height: 250px !important;
         }
+        a.btn {
+            display:inline-block;
+            margin-top:10px;
+            padding:8px 14px;
+            background:#00BCD4;
+            color:#000;
+            border-radius:6px;
+            text-decoration:none;
+            font-weight:bold;
+        }
     </style>
 </head>
 <body>
 <header>
     <h1>📡 Monitoreo ESP32 en la nube</h1>
     <p id="contador">Registros: 0</p>
+    <div class="tabs">
+        <button class="tab-btn active" data-target="tab-temp">Temperatura (V2)</button>
+        <button class="tab-btn" data-target="tab-grupo1">Sensores 1</button>
+        <button class="tab-btn" data-target="tab-rad">Radiómetro</button>
+    </div>
+    <a class="btn" href="/api/csv">📥 Descargar CSV</a>
 </header>
 
-<div class="grid">
-    <div class="card">
-        <h3>Voltaje (V)</h3>
-        <canvas id="grafVoltaje"></canvas>
+<!-- TAB 1: Voltaje 2 -->
+<div id="tab-temp" class="view active">
+    <div class="grid">
+        <div class="card">
+            <h3>Voltaje 2 (V)</h3>
+            <canvas id="grafVoltaje2"></canvas>
+        </div>
     </div>
-    <div class="card">
-        <h3>Corriente (A)</h3>
-        <canvas id="grafCorriente"></canvas>
+</div>
+
+<!-- TAB 2: grupo principal -->
+<div id="tab-grupo1" class="view">
+    <div class="grid">
+        <div class="card">
+            <h3>Voltaje 1 (V)</h3>
+            <canvas id="grafVoltaje1"></canvas>
+        </div>
+        <div class="card">
+            <h3>Corriente 1 (A)</h3>
+            <canvas id="grafCorriente1"></canvas>
+        </div>
+        <div class="card">
+            <h3>Potencia 1 (W)</h3>
+            <canvas id="grafPotencia1"></canvas>
+        </div>
     </div>
-    <div class="card">
-        <h3>Potencia (W)</h3>
-        <canvas id="grafPotencia"></canvas>
-    </div>
-    <div class="card">
-        <h3>Radiómetro</h3>
-        <canvas id="grafRad"></canvas>
+</div>
+
+<!-- TAB 3: radiómetro -->
+<div id="tab-rad" class="view">
+    <div class="grid">
+        <div class="card">
+            <h3>Radiómetro</h3>
+            <canvas id="grafRad"></canvas>
+        </div>
     </div>
 </div>
 
 <script>
-    // Crear gráficos vacíos
-    const ctxV = document.getElementById("grafVoltaje").getContext("2d");
-    const ctxC = document.getElementById("grafCorriente").getContext("2d");
-    const ctxP = document.getElementById("grafPotencia").getContext("2d");
-    const ctxR = document.getElementById("grafRad").getContext("2d");
-
-    const makeChart = (ctx, label, maxY) => new Chart(ctx, {
-        type: "line",
-        data: {
-            labels: [],
-            datasets: [{
-                label,
-                data: [],
-                borderColor: "#00BCD4",
-                tension: 0.3,
-                fill: false
-            }]
-        },
-        options: {
-            animation: false,
-            plugins: { legend: { display: true }},
-            scales: {
-                x: { grid: { display: false }},
-                y: { grid: { display: false }, suggestedMin: 0, suggestedMax: maxY }
-            }
-        }
+    // Tabs
+    const tabBtns = document.querySelectorAll(".tab-btn");
+    const views = document.querySelectorAll(".view");
+    tabBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            tabBtns.forEach(b => b.classList.remove("active"));
+            views.forEach(v => v.classList.remove("active"));
+            btn.classList.add("active");
+            document.getElementById(btn.dataset.target).classList.add("active");
+        });
     });
 
-    const chartV = makeChart(ctxV, "Voltaje (V)", 20);
-    const chartC = makeChart(ctxC, "Corriente (A)", 5);
-    const chartP = makeChart(ctxP, "Potencia (W)", 100);
-    const chartR = makeChart(ctxR, "Radiómetro", 300);
+    // Crear gráficos
+    const makeChart = (id, label, maxY) => {
+        const ctx = document.getElementById(id).getContext("2d");
+        return new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: [],
+                datasets: [{
+                    label,
+                    data: [],
+                    borderColor: "#00BCD4",
+                    tension: 0.3,
+                    fill: false
+                }]
+            },
+            options: {
+                animation: false,
+                plugins: { legend: { display: true }},
+                scales: {
+                    x: { grid: { display: false }},
+                    y: { grid: { display: false }, suggestedMin: 0, suggestedMax: maxY }
+                }
+            }
+        });
+    };
+
+    const chartV1 = makeChart("grafVoltaje1", "Voltaje 1 (V)", 20);
+    const chartV2 = makeChart("grafVoltaje2", "Voltaje 2 (V)", 20);
+    const chartC1 = makeChart("grafCorriente1", "Corriente 1 (A)", 5);
+    const chartP1 = makeChart("grafPotencia1", "Potencia 1 (W)", 200);
+    const chartRad = makeChart("grafRad", "Radiometro", 4095);
 
     async function actualizar() {
         try {
-            const res = await fetch("/api/data");
+            const res = await fetch("/api/data?n=200");
             const datos = await res.json();
 
             document.getElementById("contador").innerText = "Registros: " + datos.length;
 
-            // Tomamos como etiquetas la hora (HH:MM:SS)
             const labels = datos.map(d => (d.fecha || "").split(" ")[1] || "");
 
-            chartV.data.labels = labels;
-            chartC.data.labels = labels;
-            chartP.data.labels = labels;
-            chartR.data.labels = labels;
+            chartV1.data.labels = labels;
+            chartV2.data.labels = labels;
+            chartC1.data.labels = labels;
+            chartP1.data.labels = labels;
+            chartRad.data.labels = labels;
 
-            chartV.data.datasets[0].data = datos.map(d => d.voltaje || 0);
-            chartC.data.datasets[0].data = datos.map(d => d.corriente || 0);
-            chartP.data.datasets[0].data = datos.map(d => d.potencia || 0);
-            chartR.data.datasets[0].data = datos.map(d => d.radiometro || 0);
+            chartV1.data.datasets[0].data = datos.map(d => d.voltaje1 || 0);
+            chartV2.data.datasets[0].data = datos.map(d => d.voltaje2 || 0);
+            chartC1.data.datasets[0].data = datos.map(d => d.corriente1 || 0);
+            chartP1.data.datasets[0].data = datos.map(d => d.potencia1 || 0);
+            chartRad.data.datasets[0].data = datos.map(d => d.radiometro || 0);
 
-            chartV.update();
-            chartC.update();
-            chartP.update();
-            chartR.update();
+            chartV1.update();
+            chartV2.update();
+            chartC1.update();
+            chartP1.update();
+            chartRad.update();
         } catch (e) {
             console.error("Error al actualizar datos:", e);
         }
     }
 
-    // Actualizar cada 5 segundos
     actualizar();
     setInterval(actualizar, 5000);
 </script>
