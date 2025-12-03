@@ -2,10 +2,141 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Datos del ESP32</title>
+    <title>Monitoreo ESP32 en la nube</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #121212;
+            color: #E0E0E0;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            text-align: center;
+        }
+        header {
+            background: #1F1F1F;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        h1 {
+            margin: 0;
+            color: #00BCD4;
+        }
+        #contador {
+            color: #B0BEC5;
+            font-size: 14px;
+        }
+        .grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            padding: 10px;
+        }
+        .card {
+            background: #1E1E1E;
+            border-radius: 10px;
+            padding: 15px;
+            width: 420px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        canvas {
+            width: 100% !important;
+            height: 250px !important;
+        }
+    </style>
 </head>
 <body>
-    <h1>Servidor Flask funcionando</h1>
-    <p>Aquí aparecerán tus gráficas cuando enviemos datos.</p>
+<header>
+    <h1>📡 Monitoreo ESP32 en la nube</h1>
+    <p id="contador">Registros: 0</p>
+</header>
+
+<div class="grid">
+    <div class="card">
+        <h3>Voltaje (V)</h3>
+        <canvas id="grafVoltaje"></canvas>
+    </div>
+    <div class="card">
+        <h3>Corriente (A)</h3>
+        <canvas id="grafCorriente"></canvas>
+    </div>
+    <div class="card">
+        <h3>Potencia (W)</h3>
+        <canvas id="grafPotencia"></canvas>
+    </div>
+    <div class="card">
+        <h3>Radiómetro</h3>
+        <canvas id="grafRad"></canvas>
+    </div>
+</div>
+
+<script>
+    // Crear gráficos vacíos
+    const ctxV = document.getElementById("grafVoltaje").getContext("2d");
+    const ctxC = document.getElementById("grafCorriente").getContext("2d");
+    const ctxP = document.getElementById("grafPotencia").getContext("2d");
+    const ctxR = document.getElementById("grafRad").getContext("2d");
+
+    const makeChart = (ctx, label, maxY) => new Chart(ctx, {
+        type: "line",
+        data: {
+            labels: [],
+            datasets: [{
+                label,
+                data: [],
+                borderColor: "#00BCD4",
+                tension: 0.3,
+                fill: false
+            }]
+        },
+        options: {
+            animation: false,
+            plugins: { legend: { display: true }},
+            scales: {
+                x: { grid: { display: false }},
+                y: { grid: { display: false }, suggestedMin: 0, suggestedMax: maxY }
+            }
+        }
+    });
+
+    const chartV = makeChart(ctxV, "Voltaje (V)", 20);
+    const chartC = makeChart(ctxC, "Corriente (A)", 5);
+    const chartP = makeChart(ctxP, "Potencia (W)", 100);
+    const chartR = makeChart(ctxR, "Radiómetro", 300);
+
+    async function actualizar() {
+        try {
+            const res = await fetch("/api/data");
+            const datos = await res.json();
+
+            document.getElementById("contador").innerText = "Registros: " + datos.length;
+
+            // Tomamos como etiquetas la hora (HH:MM:SS)
+            const labels = datos.map(d => (d.fecha || "").split(" ")[1] || "");
+
+            chartV.data.labels = labels;
+            chartC.data.labels = labels;
+            chartP.data.labels = labels;
+            chartR.data.labels = labels;
+
+            chartV.data.datasets[0].data = datos.map(d => d.voltaje || 0);
+            chartC.data.datasets[0].data = datos.map(d => d.corriente || 0);
+            chartP.data.datasets[0].data = datos.map(d => d.potencia || 0);
+            chartR.data.datasets[0].data = datos.map(d => d.radiometro || 0);
+
+            chartV.update();
+            chartC.update();
+            chartP.update();
+            chartR.update();
+        } catch (e) {
+            console.error("Error al actualizar datos:", e);
+        }
+    }
+
+    // Actualizar cada 5 segundos
+    actualizar();
+    setInterval(actualizar, 5000);
+</script>
 </body>
 </html>
