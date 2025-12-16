@@ -84,7 +84,7 @@
     <h1>📡 Monitoreo ESP32 en la nube</h1>
     <p id="contador">Registros: 0</p>
     <div class="tabs">
-        <button class="tab-btn active" data-target="tab-temp">Temperatura (V2)</button>
+        <button class="tab-btn active" data-target="tab-temp">Temperatura (°C)</button>
         <button class="tab-btn" data-target="tab-grupo1">Sensores 1</button>
         <button class="tab-btn" data-target="tab-rad">Radiómetro</button>
     </div>
@@ -95,8 +95,8 @@
 <div id="tab-temp" class="view active">
     <div class="grid">
         <div class="card">
-            <h3>Voltaje 2 (V)</h3>
-            <canvas id="grafVoltaje2"></canvas>
+            <h3>Temperatura (°C)</h3>
+<canvas id="grafVoltaje2"></canvas>
         </div>
     </div>
 </div>
@@ -169,7 +169,7 @@
     };
 
     const chartV1 = makeChart("grafVoltaje1", "Voltaje 1 (V)", 20);
-    const chartV2 = makeChart("grafVoltaje2", "Voltaje 2 (V)", 20);
+   const chartV2 = makeChart("grafVoltaje2", "Temperatura (°C)", 80); // o el rango que quieras
     const chartC1 = makeChart("grafCorriente1", "Corriente 1 (A)", 5);
     const chartP1 = makeChart("grafPotencia1", "Potencia 1 (W)", 200);
     const chartRad = makeChart("grafRad", "Radiometro", 4095);
