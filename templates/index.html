@@ -153,32 +153,37 @@
                 label,
                 data: [],
                 borderColor: "#00BCD4",
-                tension: 0.3,
+                tension: 0.35,      // curva un poco más suave
                 fill: false,
-                pointRadius: 0,        // 👈 sin puntitos
+                pointRadius: 0,     // 👈 sin bolitas
                 pointHoverRadius: 0
             }]
         },
         options: {
-            animation: false,
-            plugins: { legend: { display: true }},
+            animation: {
+                duration: 400,     // 👈 animación suave
+                easing: "linear"
+            },
+            plugins: {
+                legend: { display: true }
+            },
             scales: {
-                x: { 
+                x: {
                     grid: { display: false },
                     ticks: {
                         maxTicksLimit: 6,   // 👈 como mucho 6 etiquetas
                         autoSkip: true,
-                        callback: function(val) {
+                        callback: function (val) {
+                            // label = "HH:MM:SS" → mostramos solo "HH:MM"
                             const label = this.getLabelForValue(val) || "";
-                            // solo HH:MM (primeros 5 caracteres de la hora)
-                            return label.substring(0,5);
+                            return label.substring(0, 5);
                         }
                     }
                 },
-                y: { 
-                    grid: { display: false }, 
-                    suggestedMin: 0, 
-                    suggestedMax: maxY 
+                y: {
+                    grid: { display: false },
+                    suggestedMin: 0,
+                    suggestedMax: maxY
                 }
             }
         }
@@ -194,7 +199,7 @@
 
     async function actualizar() {
         try {
-            const res = await fetch("/api/data?n=60");
+            const res = await fetch("/api/data?n=40");
             const datos = await res.json();
 
             document.getElementById("contador").innerText = "Registros: " + datos.length;
