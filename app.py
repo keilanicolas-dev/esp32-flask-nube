@@ -12,7 +12,7 @@ app = Flask(__name__)
 DB_URL = os.environ.get("DATABASE_URL")
 
 if not DB_URL:
-    raise RuntimeError("DATABASE_URL no está definida en las variables de entorno")
+    raise RuntimeError("DATABASE_URL no está definida en las variables de entrno")
 
 # Parsear la URL de conexión
 url = urlparse.urlparse(DB_URL)
@@ -203,4 +203,5 @@ def api_csv():
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=5000)
+
 
