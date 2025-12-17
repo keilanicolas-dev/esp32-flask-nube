@@ -1,54 +1,76 @@
 from flask import Flask, request, jsonify, render_template, Response
-import sqlite3
 import os
+import psycopg2
+import urllib.parse as urlparse
 from datetime import datetime
 import csv
 from io import StringIO
 
 app = Flask(__name__)
 
-DB_FILE = "datos.db"
+# ========= CONFIGURACIÓN POSTGRES =========
+DB_URL = os.environ.get("DATABASE_URL")
 
-# ========= DB helpers =========
+if not DB_URL:
+    raise RuntimeError("DATABASE_URL no está definida en las variables de entorno")
+
+# Parsear la URL de conexión
+url = urlparse.urlparse(DB_URL)
+DB_CONFIG = {
+    "dbname": url.path[1:],
+    "user": url.username,
+    "password": url.password,
+    "host": url.hostname,
+    "port": url.port
+}
+
+def get_conn():
+    return psycopg2.connect(**DB_CONFIG)
+
 def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS lecturas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             fecha TEXT,
-            voltaje1 REAL,
-            voltaje2 REAL,
-            corriente1 REAL,
-            potencia1 REAL,
-            radiometro REAL
+            voltaje1 DOUBLE PRECISION,
+            voltaje2 DOUBLE PRECISION,
+            corriente1 DOUBLE PRECISION,
+            potencia1 DOUBLE PRECISION,
+            radiometro DOUBLE PRECISION
         )
     """)
     conn.commit()
+    cur.close()
     conn.close()
 
 def insertar_lectura(fecha, v1, v2, c1, p1, rad):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
         INSERT INTO lecturas (fecha, voltaje1, voltaje2, corriente1, potencia1, radiometro)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s)
     """, (fecha, v1, v2, c1, p1, rad))
     conn.commit()
+    cur.close()
     conn.close()
 
 def obtener_ultimas(n=100):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
         SELECT fecha, voltaje1, voltaje2, corriente1, potencia1, radiometro
         FROM lecturas
         ORDER BY id DESC
-        LIMIT ?
+        LIMIT %s
     """, (n,))
-    rows = c.fetchall()
+    rows = cur.fetchall()
+    cur.close()
     conn.close()
-    rows.reverse()  # para que queden en orden cronológico
+
+    # Orden cronológico ascendente
+    rows.reverse()
     datos = []
     for r in rows:
         datos.append({
@@ -61,11 +83,24 @@ def obtener_ultimas(n=100):
         })
     return datos
 
-# ========= Rutas =========
+def contar_todo():
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM lecturas")
+    total = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+    return total
+
+# ========= HOOK DE INICIO =========
+@app.before_first_request
+def before_first_request_func():
+    init_db()
+
+# ========= RUTAS =========
 
 @app.route("/")
 def home():
-    # Dashboard con gráficas
     return render_template("index.html")
 
 @app.route("/api/data", methods=["POST"])
@@ -108,6 +143,11 @@ def api_historial():
     datos = obtener_ultimas(n)
     return jsonify(datos)
 
+@app.route("/api/count")
+def api_count():
+    total = contar_todo()
+    return jsonify({"total": total})
+
 @app.route("/api/csv")
 def api_csv():
     """
@@ -118,23 +158,23 @@ def api_csv():
     output = StringIO()
     writer = csv.writer(output)
 
-    # Encabezados nuevos
+    # Encabezados
     writer.writerow([
         "Fecha",
         "Hora",
         "Voltaje 1 (V)",
-        "Voltaje 2 (V)",
+        "Temperatura (°C)",
         "Corriente 1 (A)",
         "Potencia 1 (W)",
-        "Radiometro (ADC)"
+        "Radiometro (promedio LDR)"
     ])
 
     for d in datos:
         # Separar fecha/hora
         if d["fecha"]:
-            fecha_partes = d["fecha"].split(" ")
-            fecha_col = fecha_partes[0]
-            hora_col = fecha_partes[1] if len(fecha_partes) > 1 else ""
+            partes = d["fecha"].split(" ")
+            fecha_col = partes[0]
+            hora_col = partes[1] if len(partes) > 1 else ""
         else:
             fecha_col = ""
             hora_col = ""
@@ -159,10 +199,8 @@ def api_csv():
         }
     )
 
-# ========= Arranque local =========
+# ========= SERVIDOR LOCAL (opcional) =========
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=5000)
-
-
 
