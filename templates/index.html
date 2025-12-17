@@ -153,30 +153,49 @@
                 label,
                 data: [],
                 borderColor: "#00BCD4",
-                tension: 0.35,      // curva un poco más suave
+                tension: 0.35,
                 fill: false,
-                pointRadius: 0,     // 👈 sin bolitas
-                pointHoverRadius: 0
+                pointRadius: 2,        // puntito pequeño visible
+                pointHoverRadius: 5,   // se agranda al pasar encima
+                pointHitRadius: 10     // área “tocable” más grande (para dedo)
             }]
         },
         options: {
             animation: {
-                duration: 400,     // 👈 animación suave
+                duration: 400,
                 easing: "linear"
             },
+            interaction: {
+                mode: "nearest",   // toma el punto más cercano
+                intersect: false   // no hace falta tocar exactamente encima
+            },
             plugins: {
-                legend: { display: true }
+                legend: { display: true },
+                tooltip: {
+                    enabled: true,
+                    callbacks: {
+                        // Texto que aparece en el tooltip
+                        label: function (ctx) {
+                            const valor = ctx.parsed.y;
+                            return `${label}: ${valor}`;
+                        },
+                        title: function (items) {
+                            // usamos la hora (label en X)
+                            const lbl = items[0].label || "";
+                            return `Hora: ${lbl}`;
+                        }
+                    }
+                }
             },
             scales: {
                 x: {
                     grid: { display: false },
                     ticks: {
-                        maxTicksLimit: 6,   // 👈 como mucho 6 etiquetas
+                        maxTicksLimit: 6,
                         autoSkip: true,
                         callback: function (val) {
-                            // label = "HH:MM:SS" → mostramos solo "HH:MM"
-                            const label = this.getLabelForValue(val) || "";
-                            return label.substring(0, 5);
+                            const text = this.getLabelForValue(val) || "";
+                            return text.substring(0, 5); // HH:MM
                         }
                     }
                 },
