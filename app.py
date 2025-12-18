@@ -44,6 +44,11 @@ def init_db():
     conn.commit()
     cur.close()
     conn.close()
+# Inicializar DB al arrancar el servicio (Render / Gunicorn)
+try:
+    init_db()
+except Exception as e:
+    print("Error inicializando DB:", e)
 
 def insertar_lectura(fecha, v1, v2, c1, p1, rad):
     conn = get_conn()
@@ -92,10 +97,7 @@ def contar_todo():
     conn.close()
     return total
 
-# ========= HOOK DE INICIO =========
-@app.before_first_request
-def before_first_request_func():
-    init_db()
+
 
 # ========= RUTAS =========
 
@@ -203,4 +205,5 @@ def api_csv():
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=5000)
+
 
