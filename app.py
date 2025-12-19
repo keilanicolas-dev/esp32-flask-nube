@@ -73,30 +73,20 @@ def recibir_datos():
 
 @app.route("/api/data", methods=["GET"])
 def obtener_datos():
-    after_id = request.args.get("after_id", type=int)
-
     conn = get_conn()
     cur = conn.cursor()
-
-    if after_id:
-        cur.execute("""
-            SELECT id, fecha, hora, voltaje, corriente, potencia, radiometro, temperatura
-            FROM mediciones
-            WHERE id > %s
-            ORDER BY id ASC
-            LIMIT 300
-        """, (after_id,))
-    else:
-        cur.execute("""
-            SELECT id, fecha, hora, voltaje, corriente, potencia, radiometro, temperatura
-            FROM mediciones
-            ORDER BY id DESC
-            LIMIT 300
-        """)
-
+    cur.execute("""
+        SELECT id, fecha, hora, voltaje, corriente, potencia, radiometro, temperatura
+        FROM mediciones
+        ORDER BY id DESC
+        LIMIT 300
+    """)
     rows = cur.fetchall()
     cur.close()
     conn.close()
+
+    # rows viene DESC, lo volteamos a ASC para el frontend
+    rows.reverse()
 
     datos = []
     for r in rows:
@@ -111,17 +101,15 @@ def obtener_datos():
             "temperatura": r[7]
         })
 
-    # Si es la primera carga (últimos 300 en DESC), lo ponemos en orden ASC
-    if not after_id:
-        datos.reverse()
-
     return jsonify(datos)
+
 
 # =============================
 # SOLO PARA LOCAL (NO Render)
 # =============================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
