@@ -4,13 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Monitoreo ESP32 en la nube</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
 
   <style>
     :root{
       --bg:#0e0f10;
       --card:#1a1c1f;
-      --card2:#141618;
       --cyan:#11c5d9;
       --txt:#e9eef2;
       --muted:#aab6be;
@@ -148,19 +149,30 @@
 
 <script>
   // ========= CONFIG =========
-  const API_URL = "/api/data";        // (IMPORTANTE) usa ruta relativa en Render
-  const MAX_POINTS = 120;             // ventana visible: evita saturación
-  const REFRESH_MS = 3000;            // cada 3s (ajusta a gusto)
+  const API_URL = "/api/data";
+  const MAX_POINTS = 120;     // solo muestra los últimos 120 (no se satura)
+  const REFRESH_MS = 3000;
 
   // ========= TABS =========
   const tabBtns = document.querySelectorAll(".btn[data-tab]");
   const tabs = document.querySelectorAll(".tab");
+
   tabBtns.forEach(btn => {
     btn.addEventListener("click", () => {
       tabBtns.forEach(b => b.classList.remove("active"));
       tabs.forEach(t => t.classList.remove("active"));
+
       btn.classList.add("active");
       document.getElementById(btn.dataset.tab).classList.add("active");
+
+      // IMPORTANTÍSIMO: cuando un chart estuvo oculto (display:none),
+      // hay que forzar resize para que vuelva a dibujar bien.
+      setTimeout(() => {
+        try{
+          chTemp.resize(); chVolt.resize(); chCorr.resize(); chPot.resize(); chRad.resize();
+          chTemp.update("none"); chVolt.update("none"); chCorr.update("none"); chPot.update("none"); chRad.update("none");
+        }catch(e){}
+      }, 180);
     });
   });
 
@@ -175,30 +187,21 @@
           label,
           data: [],
           borderWidth: 2,
-          pointRadius: 0,        // sin puntos = más limpio
+          pointRadius: 0,
           tension: 0.25,
           fill: false
         }]
       },
       options: {
         responsive: true,
-        animation: { duration: 250 },   // un poquito de animación para “fluidez”
-        parsing: false,
-        interaction: {
-          mode: "nearest",
-          intersect: false
-        },
+        maintainAspectRatio: false,
+        animation: false,  // más estable para updates frecuentes
+        normalized: true,
+        interaction: { mode: "nearest", intersect: false },
         plugins: {
           legend: { display: true },
-          tooltip: {
-            enabled: true,
-            mode: "nearest",
-            intersect: false
-          },
-          decimation: {                 // ayuda mucho si hay muchos puntos
-            enabled: true,
-            algorithm: "min-max"
-          }
+          tooltip: { enabled: true, mode: "nearest", intersect: false }
+          // NOTA: quitamos decimation para evitar “se queda vacío / congelado”
         },
         scales: {
           x: {
@@ -207,7 +210,7 @@
           },
           y: {
             beginAtZero: true,
-            suggestedMax: suggestedMax,
+            suggestedMax,
             grid: { color: "rgba(255,255,255,.06)" }
           }
         }
@@ -225,16 +228,12 @@
   function pad2(n){ return String(n).padStart(2,"0"); }
 
   function parseDateTime(row){
-    // row.fecha: "YYYY-MM-DD"
-    // row.hora : "HH:MM:SS.ssssss" o "HH:MM:SS"
-    const h = (row.hora || "00:00:00").split(".")[0]; // quita microsegundos
+    const h = (row.hora || "00:00:00").split(".")[0];
     return new Date(`${row.fecha}T${h}`);
   }
 
   function labelFromRow(row){
-    // etiqueta corta = HH:MM:SS
-    const h = (row.hora || "00:00:00").split(".")[0];
-    return h;
+    return (row.hora || "00:00:00").split(".")[0]; // HH:MM:SS
   }
 
   function clampNumber(x){
@@ -249,13 +248,12 @@
     if(!res.ok) throw new Error("API error " + res.status);
     const arr = await res.json();
 
-    // 1) ordena por fecha+hora ascendente (viejo->nuevo)
+    // ordena por fecha+hora ascendente (viejo->nuevo)
     arr.sort((a,b) => parseDateTime(a) - parseDateTime(b));
 
-    // 2) recorta ventana visible
+    // ventana visible
     const view = arr.slice(-MAX_POINTS);
 
-    // 3) labels y series
     const labels = view.map(labelFromRow);
 
     const temp = view.map(d => clampNumber(d.temperatura));
@@ -264,7 +262,6 @@
     const pot  = view.map(d => clampNumber(d.potencia));
     const rad  = view.map(d => clampNumber(d.radiometro));
 
-    // contador total (sin recorte)
     document.getElementById("count").textContent = arr.length;
 
     return { labels, temp, volt, corr, pot, rad };
@@ -273,7 +270,7 @@
   function setChart(chart, labels, data){
     chart.data.labels = labels;
     chart.data.datasets[0].data = data;
-    chart.update();
+    chart.update("none"); // update sin animación, más fluido y estable
   }
 
   async function refresh(){
@@ -289,7 +286,7 @@
     }
   }
 
-  // ========= CSV DOWNLOAD (client-side) =========
+  // ========= CSV DOWNLOAD =========
   function toCSV(rows){
     const header = ["fecha","hora","voltaje","corriente","potencia","radiometro","temperatura"];
     const lines = [header.join(",")];
@@ -310,7 +307,6 @@
   document.getElementById("btnCSV").addEventListener("click", async () => {
     const res = await fetch(API_URL, { cache:"no-store" });
     const rows = await res.json();
-    // ordena cronológico
     rows.sort((a,b) => parseDateTime(a) - parseDateTime(b));
 
     const csv = toCSV(rows);
