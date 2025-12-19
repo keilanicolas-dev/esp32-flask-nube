@@ -233,8 +233,12 @@
   }
 
   function labelFromRow(row){
-    return (row.hora || "00:00:00").split(".")[0]; // HH:MM:SS
-  }
+  const h = (row.hora || "00:00:00").split(".")[0];
+  // etiqueta: MM-DD HH:MM:SS  (corta pero incluye día)
+  const f = (row.fecha || "").slice(5); // "YYYY-MM-DD" -> "MM-DD"
+  return `${f} ${h}`;
+}
+
 
   function clampNumber(x){
     if (x === null || x === undefined) return null;
