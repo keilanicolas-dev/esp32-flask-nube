@@ -248,28 +248,26 @@
 
   // ========= FETCH + UPDATE =========
   async function getData(){
-    const res = await fetch(API_URL, { cache:"no-store" });
-    if(!res.ok) throw new Error("API error " + res.status);
-    const arr = await res.json();
+  const res = await fetch(API_URL, { cache:"no-store" });
+  if(!res.ok) throw new Error("API error " + res.status);
+  const arr = await res.json();
 
-    // ordena por fecha+hora ascendente (viejo->nuevo)
-    arr.sort((a,b) => parseDateTime(a) - parseDateTime(b));
+  // ya viene en orden ASC desde el backend
+  const view = arr.slice(-MAX_POINTS);
 
-    // ventana visible
-    const view = arr.slice(-MAX_POINTS);
+  const labels = view.map(labelFromRow);
 
-    const labels = view.map(labelFromRow);
+  const temp = view.map(d => clampNumber(d.temperatura));
+  const volt = view.map(d => clampNumber(d.voltaje));
+  const corr = view.map(d => clampNumber(d.corriente));
+  const pot  = view.map(d => clampNumber(d.potencia));
+  const rad  = view.map(d => clampNumber(d.radiometro));
 
-    const temp = view.map(d => clampNumber(d.temperatura));
-    const volt = view.map(d => clampNumber(d.voltaje));
-    const corr = view.map(d => clampNumber(d.corriente));
-    const pot  = view.map(d => clampNumber(d.potencia));
-    const rad  = view.map(d => clampNumber(d.radiometro));
+  document.getElementById("count").textContent = arr.length;
 
-    document.getElementById("count").textContent = arr.length;
+  return { labels, temp, volt, corr, pot, rad };
+}
 
-    return { labels, temp, volt, corr, pot, rad };
-  }
 
   function setChart(chart, labels, data){
     chart.data.labels = labels;
