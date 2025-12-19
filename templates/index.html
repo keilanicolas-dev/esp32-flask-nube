@@ -1,254 +1,353 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Monitoreo ESP32 en la nube</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body {
-            background-color: #121212;
-            color: #E0E0E0;
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            text-align: center;
-        }
-        header {
-            background: #1F1F1F;
-            padding: 15px;
-            margin-bottom: 10px;
-        }
-        h1 {
-            margin: 0;
-            color: #00BCD4;
-        }
-        #contador {
-            color: #B0BEC5;
-            font-size: 14px;
-        }
-        .tabs {
-            margin-top: 8px;
-        }
-        .tabs button {
-            background:#263238;
-            border:none;
-            color:#E0E0E0;
-            padding:8px 14px;
-            margin:0 4px;
-            border-radius:6px;
-            cursor:pointer;
-            font-weight:bold;
-        }
-        .tabs button.active {
-            background:#00BCD4;
-            color:#000;
-        }
-        .view {
-            display:none;
-        }
-        .view.active {
-            display:block;
-        }
-        .grid {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 20px;
-            padding: 10px;
-        }
-        .card {
-            background: #1E1E1E;
-            border-radius: 10px;
-            padding: 15px;
-            width: 420px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
-        }
-        canvas {
-            width: 100% !important;
-            height: 250px !important;
-        }
-        a.btn {
-            display:inline-block;
-            margin-top:10px;
-            padding:8px 14px;
-            background:#00BCD4;
-            color:#000;
-            border-radius:6px;
-            text-decoration:none;
-            font-weight:bold;
-        }
-    </style>
-</head>
-<body>
-<header>
-    <h1>Monitoreo ESP32 en la nube</h1>
-    <p id="contador">Registros: 0</p>
-    <div class="tabs">
-        <button class="tab-btn active" data-target="tab-temp">Temperatura (°C)</button>
-        <button class="tab-btn" data-target="tab-grupo1">Sensores 1</button>
-        <button class="tab-btn" data-target="tab-rad">Radiómetro</button>
-    </div>
-    <a class="btn" href="/api/csv"> Descargar CSV</a>
-</header>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Monitoreo ESP32 en la nube</title>
 
-<!-- TAB 1: Voltaje 2 -->
-<div id="tab-temp" class="view active">
-    <div class="grid">
-        <div class="card">
-            <h3>Temperatura (°C)</h3>
-<canvas id="grafVoltaje2"></canvas>
-        </div>
-    </div>
-</div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<!-- TAB 2: grupo principal -->
-<div id="tab-grupo1" class="view">
-    <div class="grid">
-        <div class="card">
-            <h3>Voltaje 1 (V)</h3>
-            <canvas id="grafVoltaje1"></canvas>
-        </div>
-        <div class="card">
-            <h3>Corriente 1 (A)</h3>
-            <canvas id="grafCorriente1"></canvas>
-        </div>
-        <div class="card">
-            <h3>Potencia 1 (W)</h3>
-            <canvas id="grafPotencia1"></canvas>
-        </div>
-    </div>
-</div>
-
-<!-- TAB 3: radiómetro -->
-<div id="tab-rad" class="view">
-    <div class="grid">
-        <div class="card">
-            <h3>Radiómetro</h3>
-            <canvas id="grafRad"></canvas>
-        </div>
-    </div>
-</div>
-
-<script>
-    // Tabs
-    const tabBtns = document.querySelectorAll(".tab-btn");
-    const views = document.querySelectorAll(".view");
-    tabBtns.forEach(btn => {
-        btn.addEventListener("click", () => {
-            tabBtns.forEach(b => b.classList.remove("active"));
-            views.forEach(v => v.classList.remove("active"));
-            btn.classList.add("active");
-            document.getElementById(btn.dataset.target).classList.add("active");
-        });
-    });
-
-    // Crear gráficos
-    const makeChart = (id, label, maxY) => {
-    const ctx = document.getElementById(id).getContext("2d");
-    return new Chart(ctx, {
-        type: "line",
-        data: {
-            labels: [],
-            datasets: [{
-                label,
-                data: [],
-                borderColor: "#00BCD4",
-                tension: 0.35,
-                fill: false,
-                pointRadius: 2,        // puntito pequeño visible
-                pointHoverRadius: 5,   // se agranda al pasar encima
-                pointHitRadius: 10     // área “tocable” más grande (para dedo)
-            }]
-        },
-        options: {
-            animation: {
-                duration: 400,
-                easing: "linear"
-            },
-            interaction: {
-                mode: "nearest",   // toma el punto más cercano
-                intersect: false   // no hace falta tocar exactamente encima
-            },
-            plugins: {
-                legend: { display: true },
-                tooltip: {
-                    enabled: true,
-                    callbacks: {
-                        // Texto que aparece en el tooltip
-                        label: function (ctx) {
-                            const valor = ctx.parsed.y;
-                            return `${label}: ${valor}`;
-                        },
-                        title: function (items) {
-                            // usamos la hora (label en X)
-                            const lbl = items[0].label || "";
-                            return `Hora: ${lbl}`;
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    grid: { display: false },
-                    ticks: {
-                        maxTicksLimit: 6,
-                        autoSkip: true,
-                        callback: function (val) {
-                            const text = this.getLabelForValue(val) || "";
-                            return text.substring(0, 5); // HH:MM
-                        }
-                    }
-                },
-                y: {
-                    grid: { display: false },
-                    suggestedMin: 0,
-                    suggestedMax: maxY
-                }
-            }
-        }
-    });
-};
-
-
-    const chartV1 = makeChart("grafVoltaje1", "Voltaje 1 (V)", 20);
-   const chartV2 = makeChart("grafVoltaje2", "Temperatura (°C)", 80); // o el rango que quieras
-    const chartC1 = makeChart("grafCorriente1", "Corriente 1 (A)", 5);
-    const chartP1 = makeChart("grafPotencia1", "Potencia 1 (W)", 200);
-    const chartRad = makeChart("grafRad", "Radiometro", 4095);
-
-    async function actualizar() {
-        try {
-            const res = await fetch("/api/data?n=40");
-            const datos = await res.json();
-
-            document.getElementById("contador").innerText = "Registros: " + datos.length;
-
-            const labels = datos.map(d => (d.fecha || "").split(" ")[1] || "");
-
-            chartV1.data.labels = labels;
-            chartV2.data.labels = labels;
-            chartC1.data.labels = labels;
-            chartP1.data.labels = labels;
-            chartRad.data.labels = labels;
-
-            chartV1.data.datasets[0].data = datos.map(d => d.voltaje1 || 0);
-            chartV2.data.datasets[0].data = datos.map(d => d.voltaje2 || 0);
-            chartC1.data.datasets[0].data = datos.map(d => d.corriente1 || 0);
-            chartP1.data.datasets[0].data = datos.map(d => d.potencia1 || 0);
-            chartRad.data.datasets[0].data = datos.map(d => d.radiometro || 0);
-
-            chartV1.update();
-            chartV2.update();
-            chartC1.update();
-            chartP1.update();
-            chartRad.update();
-        } catch (e) {
-            console.error("Error al actualizar datos:", e);
-        }
+  <style>
+    :root{
+      --bg:#141414;
+      --panel:#1f1f1f;
+      --panel2:#202020;
+      --text:#eaeaea;
+      --muted:#bdbdbd;
+      --accent:#00c2d1;
+      --shadow: 0 12px 35px rgba(0,0,0,.45);
+      --radius: 18px;
     }
 
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      text-align:center;
+    }
+
+    header{
+      padding: 22px 14px 10px;
+    }
+
+    h1{
+      margin: 6px 0 8px;
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: .2px;
+      color: var(--accent);
+      display:flex;
+      gap:10px;
+      justify-content:center;
+      align-items:center;
+    }
+
+    .sub{
+      color: var(--muted);
+      margin: 0 0 14px;
+      font-size: 15px;
+    }
+
+    .controls{
+      display:flex;
+      flex-wrap:wrap;
+      justify-content:center;
+      gap:10px;
+      margin: 10px 0 18px;
+    }
+
+    .btn{
+      border:0;
+      background:#2a2a2a;
+      color:var(--text);
+      padding: 10px 16px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-weight: 650;
+      box-shadow: 0 6px 18px rgba(0,0,0,.25);
+      transition: transform .08s ease, background .2s ease;
+      user-select:none;
+    }
+    .btn:active{ transform: scale(.98); }
+    .btn:hover{ background:#333; }
+
+    .btn.active{
+      background: var(--accent);
+      color: #001b1e;
+    }
+
+    .btn-csv{
+      background: var(--accent);
+      color: #001b1e;
+      padding: 10px 18px;
+      border-radius: 12px;
+      font-weight: 800;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+    }
+    .btn-csv:hover{ filter: brightness(1.05); }
+
+    .wrap{
+      width:min(1100px, 95vw);
+      margin: 0 auto 30px;
+    }
+
+    .tab{
+      display:none;
+      animation: fade .15s ease;
+    }
+    .tab.active{ display:block; }
+
+    @keyframes fade{
+      from{ opacity:.85; transform: translateY(2px); }
+      to{ opacity:1; transform: translateY(0); }
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .card{
+      background: linear-gradient(180deg, var(--panel), var(--panel2));
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px 16px 16px;
+    }
+
+    .card h2{
+      margin: 4px 0 12px;
+      font-size: 20px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    canvas{
+      width: 100% !important;
+      height: 300px !important;
+    }
+
+    @media (max-width: 850px){
+      .grid{ grid-template-columns: 1fr; }
+      canvas{ height: 280px !important; }
+      h1{ font-size: 28px; }
+    }
+
+    .hint{
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 10px;
+      opacity:.9;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>🛰️ Monitoreo ESP32 en la nube</h1>
+    <p class="sub">Registros: <span id="regCount">0</span></p>
+
+    <div class="controls">
+      <button class="btn active" id="btnTemp" onclick="mostrarTab('temp', this)">Temperatura (°C)</button>
+      <button class="btn" id="btnSens" onclick="mostrarTab('sens', this)">Sensores 1</button>
+      <button class="btn" id="btnRad"  onclick="mostrarTab('rad', this)">Radiómetro</button>
+
+      <!-- Si tu endpoint CSV es /csv, cambia href="/api/csv" por href="/csv" -->
+      <a class="btn-csv" href="/api/csv" download>📥 Descargar CSV</a>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <!-- TAB TEMPERATURA -->
+    <section class="tab active" id="temp">
+      <div class="card">
+        <h2>Temperatura (°C)</h2>
+        <canvas id="cTemp"></canvas>
+        <div class="hint">Tip: pasa el dedo/ratón sobre la línea para ver el valor.</div>
+      </div>
+    </section>
+
+    <!-- TAB SENSORES 1 -->
+    <section class="tab" id="sens">
+      <div class="grid">
+        <div class="card">
+          <h2>Voltaje (V)</h2>
+          <canvas id="cVolt"></canvas>
+        </div>
+        <div class="card">
+          <h2>Corriente (A)</h2>
+          <canvas id="cCorr"></canvas>
+        </div>
+        <div class="card" style="grid-column: 1 / -1;">
+          <h2>Potencia (W)</h2>
+          <canvas id="cPot"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB RADIÓMETRO -->
+    <section class="tab" id="rad">
+      <div class="card">
+        <h2>Radiómetro</h2>
+        <canvas id="cRad"></canvas>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // =========================
+    // CONFIG
+    // =========================
+    const MAX_POINTS = 80;     // ventana visible (evita saturación)
+    const INTERVAL_MS = 3000;  // cada cuánto actualiza (ms)
+    let lastId = 0;
+
+    // =========================
+    // TABS
+    // =========================
+    function mostrarTab(id, btn){
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+
+      document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    // =========================
+    // CHART FACTORY
+    // =========================
+    function makeChart(canvasId, label, suggestedMax=null){
+      const ctx = document.getElementById(canvasId).getContext('2d');
+
+      return new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label,
+            data: [],
+            borderWidth: 2,
+            pointRadius: 0,     // sin puntitos (más fluido)
+            pointHitRadius: 12, // área de toque (móvil)
+            tension: 0.25,
+            fill: false,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          parsing: false,
+          normalized: true,
+
+          interaction: {
+            mode: 'nearest',
+            intersect: false
+          },
+
+          plugins: {
+            legend: { display: true },
+            tooltip: {
+              enabled: true,
+              mode: 'nearest',
+              intersect: false,
+              callbacks: {
+                label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}`
+              }
+            }
+          },
+
+          scales: {
+            x: {
+              ticks: { maxRotation: 0, autoSkip: true },
+              grid: { display: false }
+            },
+            y: {
+              beginAtZero: true,
+              suggestedMax: suggestedMax ?? undefined,
+              grid: { display: false }
+            }
+          }
+        }
+      });
+    }
+
+    // Creamos charts globales (para usarlos en la actualización incremental)
+    window.chartTemp = makeChart("cTemp", "Temperatura (°C)", 100);
+    window.chartVolt = makeChart("cVolt", "Voltaje (V)", 30);
+    window.chartCorr = makeChart("cCorr", "Corriente (A)", 5);
+    window.chartPot  = makeChart("cPot",  "Potencia (W)", 200);
+    window.chartRad  = makeChart("cRad",  "Radiometro", 4095);
+
+    // =========================
+    // UTIL: push + recorte ventana
+    // =========================
+    function pushPoint(chart, label, value){
+      chart.data.labels.push(label);
+      chart.data.datasets[0].data.push(value);
+
+      if (chart.data.labels.length > MAX_POINTS) {
+        chart.data.labels.shift();
+        chart.data.datasets[0].data.shift();
+      }
+    }
+
+    // =========================
+    // FETCH INCREMENTAL
+    // =========================
+    async function actualizar(){
+      try{
+        const url = lastId ? `/api/data?after_id=${lastId}` : `/api/data`;
+        const res = await fetch(url, { cache: "no-store" });
+        const nuevos = await res.json();
+
+        // Si tu backend aún no tiene after_id/id, esto te puede llegar sin id.
+        // Pero como ya lo configuraste, debe venir con "id".
+        if(!Array.isArray(nuevos) || nuevos.length === 0) return;
+
+        // actualiza contador (siempre mostramos el total como "al menos 300", pero el count real está en DB)
+        // si quieres count real, se haría endpoint /api/count; por ahora mostramos el último id como indicador.
+        const ultimo = nuevos[nuevos.length - 1];
+        if (ultimo.id) {
+          lastId = ultimo.id;
+          document.getElementById("regCount").textContent = lastId;
+        } else {
+          // fallback si no hay id
+          document.getElementById("regCount").textContent = "—";
+        }
+
+        nuevos.forEach(p => {
+          const etiqueta = p.hora || ""; // eje X
+          // Manejo de nulls: si viene null, no lo metemos
+          if (p.temperatura !== null && p.temperatura !== undefined) pushPoint(window.chartTemp, etiqueta, p.temperatura);
+          if (p.voltaje     !== null && p.voltaje     !== undefined) pushPoint(window.chartVolt, etiqueta, p.voltaje);
+          if (p.corriente   !== null && p.corriente   !== undefined) pushPoint(window.chartCorr, etiqueta, p.corriente);
+          if (p.potencia    !== null && p.potencia    !== undefined) pushPoint(window.chartPot,  etiqueta, p.potencia);
+          if (p.radiometro  !== null && p.radiometro  !== undefined) pushPoint(window.chartRad,  etiqueta, p.radiometro);
+        });
+
+        // update rápido
+        window.chartTemp.update('none');
+        window.chartVolt.update('none');
+        window.chartCorr.update('none');
+        window.chartPot.update('none');
+        window.chartRad.update('none');
+
+      } catch(e){
+        console.log("Error update:", e);
+      }
+    }
+
+    // Primera carga + loop
     actualizar();
-    setInterval(actualizar, 5000);
-</script>
+    setInterval(actualizar, INTERVAL_MS);
+  </script>
 </body>
 </html>
+
