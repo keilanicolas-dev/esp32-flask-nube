@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Monitoreo ESP32 en la nube</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <style>
     :root{
@@ -15,6 +16,8 @@
       --muted:#aab6be;
       --btn:#22262a;
       --btnActive:#0fb9cc;
+      --grid: rgba(255,255,255,.08);
+      --grid2: rgba(255,255,255,.05);
     }
     *{box-sizing:border-box}
     body{
@@ -27,7 +30,7 @@
     .wrap{max-width:1100px;margin:0 auto;padding:24px 14px 40px}
     h1{
       margin:10px 0 6px;
-      font-weight:800;
+      font-weight:900;
       letter-spacing:.5px;
       color:var(--cyan);
       text-shadow:0 0 24px rgba(17,197,217,.25);
@@ -47,8 +50,9 @@
       background:var(--btn);
       color:var(--txt);
       cursor:pointer;
-      font-weight:700;
+      font-weight:800;
       transition:transform .08s ease, background .15s ease;
+      user-select:none;
     }
     .btn:active{transform:scale(.98)}
     .btn.active{background:var(--btnActive); color:#001014}
@@ -83,7 +87,7 @@
     .card h2{
       margin:8px 0 8px;
       font-size:20px;
-      font-weight:800;
+      font-weight:900;
     }
     canvas{width:100% !important; height:320px !important;}
     .hint{
@@ -107,6 +111,7 @@
     </div>
 
     <div class="cards">
+      <!-- TAB TEMPERATURA -->
       <div id="tTemp" class="tab active">
         <div class="card">
           <h2>Temperatura (°C)</h2>
@@ -115,6 +120,7 @@
         </div>
       </div>
 
+      <!-- TAB SENSORES -->
       <div id="tSens" class="tab">
         <div class="grid2">
           <div class="card">
@@ -133,6 +139,7 @@
         </div>
       </div>
 
+      <!-- TAB RADIÓMETRO -->
       <div id="tRad" class="tab">
         <div class="card">
           <h2>Radiómetro</h2>
@@ -143,21 +150,17 @@
   </div>
 
 <script>
-  // =======================
+  // =========================
   // CONFIG
-  // =======================
-  const API_URL = "/api/data";
-  const REFRESH_MS = 3000;
+  // =========================
+  const API_URL = "/api/data";     // ruta relativa (Render)
+  const MAX_POINTS = 120;          // ventana visible (evita saturación)
+  const REFRESH_MS = 2500;         // refresco
+  let lastMaxId = 0;               // para saber si hubo cambios y evitar updates inútiles
 
-  // Ventana visible para evitar saturación
-  const MAX_POINTS = 120;
-
-  // Zona horaria correcta
-  const TZ = "America/Mexico_City";
-
-  // =======================
+  // =========================
   // TABS
-  // =======================
+  // =========================
   const tabBtns = document.querySelectorAll(".btn[data-tab]");
   const tabs = document.querySelectorAll(".tab");
   tabBtns.forEach(btn => {
@@ -169,9 +172,9 @@
     });
   });
 
-  // =======================
+  // =========================
   // CHART FACTORY
-  // =======================
+  // =========================
   function makeLineChart(canvasId, label, suggestedMax){
     const ctx = document.getElementById(canvasId).getContext("2d");
     return new Chart(ctx, {
@@ -182,26 +185,26 @@
           label,
           data: [],
           borderWidth: 2,
-          pointRadius: 0,         // fluido + no saturación
+          pointRadius: 0,
           tension: 0.25,
           fill: false
         }]
       },
       options: {
         responsive: true,
-        animation: false,         // 🔥 clave para rendimiento
-        normalized: true,
-        parsing: false,
+        animation: { duration: 220 },
         interaction: { mode: "nearest", intersect: false },
         plugins: {
           legend: { display: true },
-          tooltip: { enabled: true, mode:"nearest", intersect:false },
-          decimation: { enabled: true, algorithm: "min-max" }
+          tooltip: { enabled: true, mode: "nearest", intersect: false }
         },
         scales: {
           x: {
-            ticks: { autoSkip: true, maxRotation: 0 },
-            grid: { display: false }
+            ticks: {
+              autoSkip: true,
+              maxRotation: 0
+            },
+            grid: { color: "transparent" }
           },
           y: {
             beginAtZero: true,
@@ -219,158 +222,95 @@
   const chPot  = makeLineChart("chPot",  "Potencia (W)", 200);
   const chRad  = makeLineChart("chRad",  "Radiómetro", 4096);
 
-  // =======================
+  // =========================
   // HELPERS
-  // =======================
+  // =========================
+  function pad2(n){ return String(n).padStart(2,"0"); }
+
   function safeNum(x){
-  if (x === null || x === undefined) return null;
-  if (x === "") return null;
-
-  // Si viene como texto, arregla coma decimal y espacios
-  if (typeof x === "string"){
-    x = x.trim().replace(",", ".");
-    if (x.toLowerCase() === "none" || x.toLowerCase() === "null") return null;
+    if (x === null || x === undefined) return null;
+    const n = Number(x);
+    return Number.isFinite(n) ? n : null;
   }
 
-  const n = parseFloat(x);
-  return Number.isFinite(n) ? n : null;
-}
-
-  // Convierte fecha+hora (UTC del server) -> Date UTC
-  function parseUTC(row){
-    const h = (row.hora || "00:00:00").split(".")[0];
-    // 👇 Z = tratarlo como UTC
-    return new Date(`${row.fecha}T${h}Z`);
+  function labelFromRow(r){
+    // muestra sólo hora (HH:MM:SS)
+    const h = (r.hora || "00:00:00").split(".")[0];
+    return h;
   }
 
-  // Etiqueta en hora local (México)
-  const fmtTime = new Intl.DateTimeFormat("es-MX", {
-    timeZone: TZ,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  });
-
-  function labelLocal(row){
-    return fmtTime.format(parseUTC(row));
+  function setChart(chart, labels, data){
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = data;
+    chart.update();
   }
 
-  function keepWindow(chart){
-    const L = chart.data.labels.length;
-    if (L > MAX_POINTS){
-      const extra = L - MAX_POINTS;
-      chart.data.labels.splice(0, extra);
-      chart.data.datasets[0].data.splice(0, extra);
-    }
-  }
-
-  function pushPoint(chart, label, value){
-    chart.data.labels.push(label);
-    chart.data.datasets[0].data.push(value);
-    keepWindow(chart);
-  }
-
-  // =======================
-  // CARGA INICIAL + UPDATE INCREMENTAL
-  // =======================
-  let lastId = 0; // vamos a ir agregando solo lo nuevo
-
-  async function fetchAll(){
+  // =========================
+  // FETCH + UPDATE
+  // =========================
+  async function getData(){
     const res = await fetch(API_URL, { cache:"no-store" });
     if(!res.ok) throw new Error("API error " + res.status);
     const arr = await res.json();
 
-    // En tu API ya aparecen id. Ordenamos por id asc
+    // Si no hay datos
+    if(!Array.isArray(arr) || arr.length === 0){
+      document.getElementById("count").textContent = 0;
+      return { arr: [], view: [], labels: [], temp: [], volt: [], corr: [], pot: [], rad: [], maxId: 0 };
+    }
+
+    // ✅ IMPORTANTÍSIMO:
+    // Tu API suele traer DESC (nuevo→viejo). Aquí lo normalizamos por id (viejo→nuevo).
     arr.sort((a,b) => (a.id ?? 0) - (b.id ?? 0));
-    return arr;
-  }
 
-  function redrawFromScratch(rows){
-    // Limpia y dibuja SOLO la ventana final
-    const view = rows.slice(-MAX_POINTS);
+    const maxId = arr[arr.length - 1].id ?? 0;
 
-    for (const ch of [chTemp,chVolt,chCorr,chPot,chRad]){
-      ch.data.labels = [];
-      ch.data.datasets[0].data = [];
-    }
+    // contador total
+    document.getElementById("count").textContent = arr.length;
 
-    for (const r of view){
-      const lab = labelLocal(r);
-      pushPoint(chTemp, lab, safeNum(r.temperatura ?? r.temp ?? r.voltaje2));
-pushPoint(chVolt, lab, safeNum(r.voltaje ?? r.voltaje1));
-pushPoint(chCorr, lab, safeNum(r.corriente ?? r.corriente1));
-pushPoint(chPot,  lab, safeNum(r.potencia ?? r.potencia1));
-pushPoint(chRad,  lab, safeNum(r.radiometro));
+    // ventana visible
+    const view = arr.slice(-MAX_POINTS);
 
-    }
+    const labels = view.map(labelFromRow);
+    const temp = view.map(d => safeNum(d.temperatura));
+    const volt = view.map(d => safeNum(d.voltaje));
+    const corr = view.map(d => safeNum(d.corriente));
+    const pot  = view.map(d => safeNum(d.potencia));
+    const rad  = view.map(d => safeNum(d.radiometro));
 
-    // Render rápido
-    chTemp.update("none");
-    chVolt.update("none");
-    chCorr.update("none");
-    chPot.update("none");
-    chRad.update("none");
-
-    // lastId al final
-    if (rows.length){
-      lastId = rows[rows.length - 1].id ?? lastId;
-    }
+    return { arr, view, labels, temp, volt, corr, pot, rad, maxId };
   }
 
   async function refresh(){
     try{
-      const rows = await fetchAll();
-      document.getElementById("count").textContent = rows.length;
+      const d = await getData();
 
-      if (!rows.length) return;
+      // Si no cambió el id más nuevo, no actualizamos (evita “repaint” innecesario)
+      if(d.maxId && d.maxId === lastMaxId) return;
+      lastMaxId = d.maxId;
 
-      // Primera vez: dibuja desde cero
-      if (lastId === 0){
-        redrawFromScratch(rows);
-        return;
-      }
-
-      // Toma solo los nuevos
-      const nuevos = rows.filter(r => (r.id ?? 0) > lastId);
-
-      // Si no hay nuevos, nada que hacer
-      if (!nuevos.length) return;
-
-      // Agrega punto por punto (sin redibujar todo)
-      for (const r of nuevos){
-        const lab = labelLocal(r);
-        pushPoint(chTemp, lab, safeNum(r.temperatura));
-        pushPoint(chVolt, lab, safeNum(r.voltaje));
-        pushPoint(chCorr, lab, safeNum(r.corriente));
-        pushPoint(chPot,  lab, safeNum(r.potencia));
-        pushPoint(chRad,  lab, safeNum(r.radiometro));
-        lastId = r.id ?? lastId;
-      }
-
-      // Actualiza una sola vez cada chart
-      chTemp.update("none");
-      chVolt.update("none");
-      chCorr.update("none");
-      chPot.update("none");
-      chRad.update("none");
+      setChart(chTemp, d.labels, d.temp);
+      setChart(chVolt, d.labels, d.volt);
+      setChart(chCorr, d.labels, d.corr);
+      setChart(chPot,  d.labels, d.pot);
+      setChart(chRad,  d.labels, d.rad);
 
     }catch(e){
       console.log("refresh error:", e);
     }
   }
 
-  // =======================
-  // CSV
-  // =======================
-  function pad2(n){ return String(n).padStart(2,"0"); }
-
+  // =========================
+  // CSV DOWNLOAD (client-side)
+  // =========================
   function toCSV(rows){
-    const header = ["fecha","hora_local_mx","voltaje","corriente","potencia","radiometro","temperatura"];
+    const header = ["id","fecha","hora","voltaje","corriente","potencia","radiometro","temperatura"];
     const lines = [header.join(",")];
     for(const r of rows){
       lines.push([
+        r.id ?? "",
         r.fecha ?? "",
-        labelLocal(r),
+        (r.hora ?? "").split(".")[0],
         r.voltaje ?? "",
         r.corriente ?? "",
         r.potencia ?? "",
@@ -382,25 +322,36 @@ pushPoint(chRad,  lab, safeNum(r.radiometro));
   }
 
   document.getElementById("btnCSV").addEventListener("click", async () => {
-    const rows = await fetchAll();
-    const csv = toCSV(rows);
+    const res = await fetch(API_URL, { cache:"no-store" });
+    const rows = await res.json();
 
+    if(!Array.isArray(rows) || rows.length === 0){
+      alert("Aún no hay datos para descargar.");
+      return;
+    }
+
+    // orden cronológico por id
+    rows.sort((a,b) => (a.id ?? 0) - (b.id ?? 0));
+
+    const csv = toCSV(rows);
     const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement("a");
     a.href = url;
+
     const now = new Date();
     a.download = `esp32_${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(now.getDate())}_${pad2(now.getHours())}${pad2(now.getMinutes())}.csv`;
+
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
   });
 
-  // =======================
+  // =========================
   // START
-  // =======================
+  // =========================
   refresh();
   setInterval(refresh, REFRESH_MS);
 </script>
