@@ -296,11 +296,12 @@
 
     for (const r of view){
       const lab = labelLocal(r);
-      pushPoint(chTemp, lab, safeNum(r.temperatura));
-      pushPoint(chVolt, lab, safeNum(r.voltaje));
-      pushPoint(chCorr, lab, safeNum(r.corriente));
-      pushPoint(chPot,  lab, safeNum(r.potencia));
-      pushPoint(chRad,  lab, safeNum(r.radiometro));
+      pushPoint(chTemp, lab, safeNum(r.temperatura ?? r.temp ?? r.voltaje2));
+pushPoint(chVolt, lab, safeNum(r.voltaje ?? r.voltaje1));
+pushPoint(chCorr, lab, safeNum(r.corriente ?? r.corriente1));
+pushPoint(chPot,  lab, safeNum(r.potencia ?? r.potencia1));
+pushPoint(chRad,  lab, safeNum(r.radiometro));
+
     }
 
     // Render rápido
