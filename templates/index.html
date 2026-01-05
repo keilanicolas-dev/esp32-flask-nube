@@ -4,9 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Monitoreo ESP32 en la nube</title>
-
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
     :root{
@@ -109,7 +107,6 @@
     </div>
 
     <div class="cards">
-      <!-- TAB TEMPERATURA -->
       <div id="tTemp" class="tab active">
         <div class="card">
           <h2>Temperatura (°C)</h2>
@@ -118,7 +115,6 @@
         </div>
       </div>
 
-      <!-- TAB SENSORES -->
       <div id="tSens" class="tab">
         <div class="grid2">
           <div class="card">
@@ -137,7 +133,6 @@
         </div>
       </div>
 
-      <!-- TAB RADIÓMETRO -->
       <div id="tRad" class="tab">
         <div class="card">
           <h2>Radiómetro</h2>
@@ -148,35 +143,35 @@
   </div>
 
 <script>
-  // ========= CONFIG =========
+  // =======================
+  // CONFIG
+  // =======================
   const API_URL = "/api/data";
-  const MAX_POINTS = 120;     // solo muestra los últimos 120 (no se satura)
   const REFRESH_MS = 3000;
 
-  // ========= TABS =========
+  // Ventana visible para evitar saturación
+  const MAX_POINTS = 120;
+
+  // Zona horaria correcta
+  const TZ = "America/Mexico_City";
+
+  // =======================
+  // TABS
+  // =======================
   const tabBtns = document.querySelectorAll(".btn[data-tab]");
   const tabs = document.querySelectorAll(".tab");
-
   tabBtns.forEach(btn => {
     btn.addEventListener("click", () => {
       tabBtns.forEach(b => b.classList.remove("active"));
       tabs.forEach(t => t.classList.remove("active"));
-
       btn.classList.add("active");
       document.getElementById(btn.dataset.tab).classList.add("active");
-
-      // IMPORTANTÍSIMO: cuando un chart estuvo oculto (display:none),
-      // hay que forzar resize para que vuelva a dibujar bien.
-      setTimeout(() => {
-        try{
-          chTemp.resize(); chVolt.resize(); chCorr.resize(); chPot.resize(); chRad.resize();
-          chTemp.update("none"); chVolt.update("none"); chCorr.update("none"); chPot.update("none"); chRad.update("none");
-        }catch(e){}
-      }, 180);
     });
   });
 
-  // ========= CHART FACTORY =========
+  // =======================
+  // CHART FACTORY
+  // =======================
   function makeLineChart(canvasId, label, suggestedMax){
     const ctx = document.getElementById(canvasId).getContext("2d");
     return new Chart(ctx, {
@@ -187,25 +182,25 @@
           label,
           data: [],
           borderWidth: 2,
-          pointRadius: 0,
+          pointRadius: 0,         // fluido + no saturación
           tension: 0.25,
           fill: false
         }]
       },
       options: {
         responsive: true,
-        maintainAspectRatio: false,
-        animation: false,  // más estable para updates frecuentes
+        animation: false,         // 🔥 clave para rendimiento
         normalized: true,
+        parsing: false,
         interaction: { mode: "nearest", intersect: false },
         plugins: {
           legend: { display: true },
-          tooltip: { enabled: true, mode: "nearest", intersect: false }
-          // NOTA: quitamos decimation para evitar “se queda vacío / congelado”
+          tooltip: { enabled: true, mode:"nearest", intersect:false },
+          decimation: { enabled: true, algorithm: "min-max" }
         },
         scales: {
           x: {
-            ticks: { maxRotation: 0, autoSkip: true },
+            ticks: { autoSkip: true, maxRotation: 0 },
             grid: { display: false }
           },
           y: {
@@ -224,78 +219,149 @@
   const chPot  = makeLineChart("chPot",  "Potencia (W)", 200);
   const chRad  = makeLineChart("chRad",  "Radiómetro", 4096);
 
-  // ========= HELPERS =========
-  function pad2(n){ return String(n).padStart(2,"0"); }
-
-  function parseDateTime(row){
-    const h = (row.hora || "00:00:00").split(".")[0];
-    return new Date(`${row.fecha}T${h}`);
-  }
-
-  function labelFromRow(row){
-  const h = (row.hora || "00:00:00").split(".")[0];
-  // etiqueta: MM-DD HH:MM:SS  (corta pero incluye día)
-  const f = (row.fecha || "").slice(5); // "YYYY-MM-DD" -> "MM-DD"
-  return `${f} ${h}`;
-}
-
-
-  function clampNumber(x){
+  // =======================
+  // HELPERS
+  // =======================
+  function safeNum(x){
     if (x === null || x === undefined) return null;
     const n = Number(x);
     return Number.isFinite(n) ? n : null;
   }
 
-  // ========= FETCH + UPDATE =========
-  async function getData(){
-  const res = await fetch(API_URL, { cache:"no-store" });
-  if(!res.ok) throw new Error("API error " + res.status);
-  const arr = await res.json();
+  // Convierte fecha+hora (UTC del server) -> Date UTC
+  function parseUTC(row){
+    const h = (row.hora || "00:00:00").split(".")[0];
+    // 👇 Z = tratarlo como UTC
+    return new Date(`${row.fecha}T${h}Z`);
+  }
 
-  // ya viene en orden ASC desde el backend
-  const view = arr.slice(-MAX_POINTS);
+  // Etiqueta en hora local (México)
+  const fmtTime = new Intl.DateTimeFormat("es-MX", {
+    timeZone: TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
 
-  const labels = view.map(labelFromRow);
+  function labelLocal(row){
+    return fmtTime.format(parseUTC(row));
+  }
 
-  const temp = view.map(d => clampNumber(d.temperatura));
-  const volt = view.map(d => clampNumber(d.voltaje));
-  const corr = view.map(d => clampNumber(d.corriente));
-  const pot  = view.map(d => clampNumber(d.potencia));
-  const rad  = view.map(d => clampNumber(d.radiometro));
+  function keepWindow(chart){
+    const L = chart.data.labels.length;
+    if (L > MAX_POINTS){
+      const extra = L - MAX_POINTS;
+      chart.data.labels.splice(0, extra);
+      chart.data.datasets[0].data.splice(0, extra);
+    }
+  }
 
-  document.getElementById("count").textContent = arr.length;
+  function pushPoint(chart, label, value){
+    chart.data.labels.push(label);
+    chart.data.datasets[0].data.push(value);
+    keepWindow(chart);
+  }
 
-  return { labels, temp, volt, corr, pot, rad };
-}
+  // =======================
+  // CARGA INICIAL + UPDATE INCREMENTAL
+  // =======================
+  let lastId = 0; // vamos a ir agregando solo lo nuevo
 
+  async function fetchAll(){
+    const res = await fetch(API_URL, { cache:"no-store" });
+    if(!res.ok) throw new Error("API error " + res.status);
+    const arr = await res.json();
 
-  function setChart(chart, labels, data){
-    chart.data.labels = labels;
-    chart.data.datasets[0].data = data;
-    chart.update("none"); // update sin animación, más fluido y estable
+    // En tu API ya aparecen id. Ordenamos por id asc
+    arr.sort((a,b) => (a.id ?? 0) - (b.id ?? 0));
+    return arr;
+  }
+
+  function redrawFromScratch(rows){
+    // Limpia y dibuja SOLO la ventana final
+    const view = rows.slice(-MAX_POINTS);
+
+    for (const ch of [chTemp,chVolt,chCorr,chPot,chRad]){
+      ch.data.labels = [];
+      ch.data.datasets[0].data = [];
+    }
+
+    for (const r of view){
+      const lab = labelLocal(r);
+      pushPoint(chTemp, lab, safeNum(r.temperatura));
+      pushPoint(chVolt, lab, safeNum(r.voltaje));
+      pushPoint(chCorr, lab, safeNum(r.corriente));
+      pushPoint(chPot,  lab, safeNum(r.potencia));
+      pushPoint(chRad,  lab, safeNum(r.radiometro));
+    }
+
+    // Render rápido
+    chTemp.update("none");
+    chVolt.update("none");
+    chCorr.update("none");
+    chPot.update("none");
+    chRad.update("none");
+
+    // lastId al final
+    if (rows.length){
+      lastId = rows[rows.length - 1].id ?? lastId;
+    }
   }
 
   async function refresh(){
     try{
-      const d = await getData();
-      setChart(chTemp, d.labels, d.temp);
-      setChart(chVolt, d.labels, d.volt);
-      setChart(chCorr, d.labels, d.corr);
-      setChart(chPot,  d.labels, d.pot);
-      setChart(chRad,  d.labels, d.rad);
+      const rows = await fetchAll();
+      document.getElementById("count").textContent = rows.length;
+
+      if (!rows.length) return;
+
+      // Primera vez: dibuja desde cero
+      if (lastId === 0){
+        redrawFromScratch(rows);
+        return;
+      }
+
+      // Toma solo los nuevos
+      const nuevos = rows.filter(r => (r.id ?? 0) > lastId);
+
+      // Si no hay nuevos, nada que hacer
+      if (!nuevos.length) return;
+
+      // Agrega punto por punto (sin redibujar todo)
+      for (const r of nuevos){
+        const lab = labelLocal(r);
+        pushPoint(chTemp, lab, safeNum(r.temperatura));
+        pushPoint(chVolt, lab, safeNum(r.voltaje));
+        pushPoint(chCorr, lab, safeNum(r.corriente));
+        pushPoint(chPot,  lab, safeNum(r.potencia));
+        pushPoint(chRad,  lab, safeNum(r.radiometro));
+        lastId = r.id ?? lastId;
+      }
+
+      // Actualiza una sola vez cada chart
+      chTemp.update("none");
+      chVolt.update("none");
+      chCorr.update("none");
+      chPot.update("none");
+      chRad.update("none");
+
     }catch(e){
       console.log("refresh error:", e);
     }
   }
 
-  // ========= CSV DOWNLOAD =========
+  // =======================
+  // CSV
+  // =======================
+  function pad2(n){ return String(n).padStart(2,"0"); }
+
   function toCSV(rows){
-    const header = ["fecha","hora","voltaje","corriente","potencia","radiometro","temperatura"];
+    const header = ["fecha","hora_local_mx","voltaje","corriente","potencia","radiometro","temperatura"];
     const lines = [header.join(",")];
     for(const r of rows){
       lines.push([
         r.fecha ?? "",
-        (r.hora ?? "").split(".")[0],
+        labelLocal(r),
         r.voltaje ?? "",
         r.corriente ?? "",
         r.potencia ?? "",
@@ -307,11 +373,9 @@
   }
 
   document.getElementById("btnCSV").addEventListener("click", async () => {
-    const res = await fetch(API_URL, { cache:"no-store" });
-    const rows = await res.json();
-    rows.sort((a,b) => parseDateTime(a) - parseDateTime(b));
-
+    const rows = await fetchAll();
     const csv = toCSV(rows);
+
     const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
     const url = URL.createObjectURL(blob);
 
@@ -325,7 +389,9 @@
     URL.revokeObjectURL(url);
   });
 
-  // ========= START =========
+  // =======================
+  // START
+  // =======================
   refresh();
   setInterval(refresh, REFRESH_MS);
 </script>
