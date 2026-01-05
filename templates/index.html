@@ -223,10 +223,18 @@
   // HELPERS
   // =======================
   function safeNum(x){
-    if (x === null || x === undefined) return null;
-    const n = Number(x);
-    return Number.isFinite(n) ? n : null;
+  if (x === null || x === undefined) return null;
+  if (x === "") return null;
+
+  // Si viene como texto, arregla coma decimal y espacios
+  if (typeof x === "string"){
+    x = x.trim().replace(",", ".");
+    if (x.toLowerCase() === "none" || x.toLowerCase() === "null") return null;
   }
+
+  const n = parseFloat(x);
+  return Number.isFinite(n) ? n : null;
+}
 
   // Convierte fecha+hora (UTC del server) -> Date UTC
   function parseUTC(row){
