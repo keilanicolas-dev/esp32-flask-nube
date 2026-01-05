@@ -107,7 +107,7 @@
       <button class="btn active" data-tab="tTemp">Temperatura (°C)</button>
       <button class="btn" data-tab="tSens">Sensores 1</button>
       <button class="btn" data-tab="tRad">Radiómetro</button>
-      <button class="btn csv" id="btnCSV">📥 Descargar CSV</button>
+      <button class="btn csv" id="btnCSV">Descargar CSV</button>
     </div>
 
     <div class="cards">
@@ -259,7 +259,7 @@
       return { arr: [], view: [], labels: [], temp: [], volt: [], corr: [], pot: [], rad: [], maxId: 0 };
     }
 
-    // ✅ IMPORTANTÍSIMO:
+    // IMPORTANTÍSIMO:
     // Tu API suele traer DESC (nuevo→viejo). Aquí lo normalizamos por id (viejo→nuevo).
     arr.sort((a,b) => (a.id ?? 0) - (b.id ?? 0));
 
