@@ -96,12 +96,6 @@
     canvas{width:100% !important; height:280px !important;}
     .hint{margin-top:10px;color:var(--muted);font-size:13px}
     .split{height:14px}
-    .sectionTitle{
-      margin:0 0 10px;
-      color:var(--muted);
-      font-weight:800;
-      letter-spacing:.3px;
-    }
   </style>
 </head>
 
@@ -117,7 +111,11 @@
       <button class="btn active" data-tab="tTemp">Temperatura (°C)</button>
       <button class="btn" data-tab="tSens">Sensores de paneles (S2)</button>
       <button class="btn" data-tab="tRad">Radiómetro (S2)</button>
-      <button class="btn" data-tab="tWroom">WROOM (3 paneles)</button>
+
+      <button class="btn" data-tab="tW1">WROOM Panel 1</button>
+      <button class="btn" data-tab="tW2">WROOM Panel 2</button>
+      <button class="btn" data-tab="tW3">WROOM Panel 3</button>
+
       <button class="btn csv" id="btnCSV">📥 Descargar CSV (S2)</button>
     </div>
 
@@ -132,7 +130,7 @@
         </div>
       </div>
 
-      <!-- TAB SENSORES DE PANELES (S2) -->
+      <!-- TAB SENSORES S2 -->
       <div id="tSens" class="tab">
         <div class="grid2">
           <div class="card">
@@ -159,41 +157,43 @@
         </div>
       </div>
 
-      <!-- TAB WROOM (3 PANELES) -->
-      <div id="tWroom" class="tab">
-
+      <!-- TAB WROOM PANEL 1 -->
+      <div id="tW1" class="tab">
         <div class="card">
-          <div class="sectionTitle">Panel 1 (WROOM)</div>
+          <h2>WROOM Panel 1</h2>
           <div class="grid3">
             <div class="card"><h2>Voltaje 1 (V)</h2><canvas id="chWV1"></canvas></div>
             <div class="card"><h2>Corriente 1 (A)</h2><canvas id="chWC1"></canvas></div>
             <div class="card"><h2>Potencia 1 (W)</h2><canvas id="chWP1"></canvas></div>
           </div>
+          <div class="hint">Datos desde /api/data?device=wroom</div>
         </div>
+      </div>
 
-        <div class="split"></div>
-
+      <!-- TAB WROOM PANEL 2 -->
+      <div id="tW2" class="tab">
         <div class="card">
-          <div class="sectionTitle">Panel 2 (WROOM)</div>
+          <h2>WROOM Panel 2</h2>
           <div class="grid3">
             <div class="card"><h2>Voltaje 2 (V)</h2><canvas id="chWV2"></canvas></div>
             <div class="card"><h2>Corriente 2 (A)</h2><canvas id="chWC2"></canvas></div>
             <div class="card"><h2>Potencia 2 (W)</h2><canvas id="chWP2"></canvas></div>
           </div>
+          <div class="hint">Datos desde /api/data?device=wroom</div>
         </div>
+      </div>
 
-        <div class="split"></div>
-
+      <!-- TAB WROOM PANEL 3 -->
+      <div id="tW3" class="tab">
         <div class="card">
-          <div class="sectionTitle">Panel 3 (WROOM)</div>
+          <h2>WROOM Panel 3</h2>
           <div class="grid3">
             <div class="card"><h2>Voltaje 3 (V)</h2><canvas id="chWV3"></canvas></div>
             <div class="card"><h2>Corriente 3 (A)</h2><canvas id="chWC3"></canvas></div>
             <div class="card"><h2>Potencia 3 (W)</h2><canvas id="chWP3"></canvas></div>
           </div>
+          <div class="hint">Datos desde /api/data?device=wroom</div>
         </div>
-
-        <div class="hint">Esta pestaña usa /api/data?device=wroom</div>
       </div>
 
     </div>
@@ -203,7 +203,6 @@
   // ========= CONFIG =========
   const API_S2 = "/api/data?device=s2";
   const API_W  = "/api/data?device=wroom";
-
   const MAX_POINTS = 120;
   const REFRESH_MS = 3000;
 
@@ -224,17 +223,7 @@
     const ctx = document.getElementById(canvasId).getContext("2d");
     return new Chart(ctx, {
       type: "line",
-      data: {
-        labels: [],
-        datasets: [{
-          label,
-          data: [],
-          borderWidth: 2,
-          pointRadius: 0,
-          tension: 0.25,
-          fill: false
-        }]
-      },
+      data: { labels: [], datasets: [{ label, data: [], borderWidth: 2, pointRadius: 0, tension: 0.25, fill: false }] },
       options: {
         responsive: true,
         animation: { duration: 200 },
@@ -259,7 +248,7 @@
   const chPot  = makeLineChart("chPot",  "Potencia (W)", 200);
   const chRad  = makeLineChart("chRad",  "Radiómetro", 4096);
 
-  // WROOM (Panel 1..3)
+  // WROOM Panel 1..3
   const chWV1 = makeLineChart("chWV1", "Voltaje 1 (V)", 30);
   const chWC1 = makeLineChart("chWC1", "Corriente 1 (A)", 10);
   const chWP1 = makeLineChart("chWP1", "Potencia 1 (W)", 200);
@@ -309,14 +298,14 @@
       document.getElementById("countS2").textContent = s2.total;
       document.getElementById("countW").textContent  = w.total;
 
-      // --- S2 series ---
+      // S2
       setChart(chTemp, s2.labels, s2.view.map(d => nval(d.temperatura)));
       setChart(chVolt, s2.labels, s2.view.map(d => nval(d.voltaje)));
       setChart(chCorr, s2.labels, s2.view.map(d => nval(d.corriente)));
       setChart(chPot,  s2.labels, s2.view.map(d => nval(d.potencia)));
       setChart(chRad,  s2.labels, s2.view.map(d => nval(d.radiometro)));
 
-      // --- WROOM series (Panel 1..3) ---
+      // WROOM (usa keys voltaje1..3, corriente1..3, potencia1..3)
       setChart(chWV1, w.labels, w.view.map(d => nval(d.voltaje1)));
       setChart(chWC1, w.labels, w.view.map(d => nval(d.corriente1)));
       setChart(chWP1, w.labels, w.view.map(d => nval(d.potencia1)));
@@ -372,3 +361,4 @@
 </script>
 </body>
 </html>
+
