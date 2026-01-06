@@ -34,13 +34,20 @@
     }
     .sub{color:var(--muted);margin:0 0 18px}
     .topbar{
-      display:flex; flex-wrap:wrap; justify-content:center;
-      gap:10px; margin:14px 0 18px;
+      display:flex;
+      flex-wrap:wrap;
+      justify-content:center;
+      gap:10px;
+      margin:14px 0 18px;
     }
     .btn{
-      border:none; padding:10px 16px; border-radius:12px;
-      background:var(--btn); color:var(--txt);
-      cursor:pointer; font-weight:700;
+      border:none;
+      padding:10px 16px;
+      border-radius:12px;
+      background:var(--btn);
+      color:var(--txt);
+      cursor:pointer;
+      font-weight:700;
       transition:transform .08s ease, background .15s ease;
     }
     .btn:active{transform:scale(.98)}
@@ -59,17 +66,31 @@
     }
     .tab{display:none}
     .tab.active{display:block}
-    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
-    @media (max-width:900px){ .grid2{grid-template-columns:1fr} }
+    .grid2{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:14px;
+    }
+    @media (max-width:900px){
+      .grid2{grid-template-columns:1fr}
+    }
     .card{
       background: radial-gradient(900px 320px at 50% 0px, rgba(255,255,255,.06), transparent 65%), var(--card);
       border:1px solid rgba(255,255,255,.06);
       border-radius:22px;
       padding:16px 14px 10px;
     }
-    .card h2{ margin:8px 0 8px; font-size:20px; font-weight:800; }
+    .card h2{
+      margin:8px 0 8px;
+      font-size:20px;
+      font-weight:800;
+    }
     canvas{width:100% !important; height:320px !important;}
-    .hint{ margin-top:10px; color:var(--muted); font-size:13px; }
+    .hint{
+      margin-top:10px;
+      color:var(--muted);
+      font-size:13px;
+    }
   </style>
 </head>
 
@@ -86,6 +107,7 @@
     </div>
 
     <div class="cards">
+      <!-- TAB TEMPERATURA -->
       <div id="tTemp" class="tab active">
         <div class="card">
           <h2>Temperatura (°C)</h2>
@@ -94,6 +116,7 @@
         </div>
       </div>
 
+      <!-- TAB SENSORES -->
       <div id="tSens" class="tab">
         <div class="grid2">
           <div class="card">
@@ -112,6 +135,7 @@
         </div>
       </div>
 
+      <!-- TAB RADIÓMETRO -->
       <div id="tRad" class="tab">
         <div class="card">
           <h2>Radiómetro</h2>
@@ -122,48 +146,38 @@
   </div>
 
 <script>
+  // ========= CONFIG =========
   const API_URL = "/api/data";
-  const MAX_POINTS = 120;
-  const REFRESH_MS = 3000;
+  const MAX_POINTS = 120;      // solo últimos puntos visibles
+  const REFRESH_MS = 3000;     // cada 3s
 
-  // Tabs
-  const tabBtns = document.querySelectorAll(".btn[data-tab]");
-  const tabs = document.querySelectorAll(".tab");
-  tabBtns.forEach(btn => {
-    btn.addEventListener("click", () => {
-      tabBtns.forEach(b => b.classList.remove("active"));
-      tabs.forEach(t => t.classList.remove("active"));
-      btn.classList.add("active");
-      document.getElementById(btn.dataset.tab).classList.add("active");
-    });
-  });
-
+  // ========= CHART FACTORY =========
   function makeLineChart(canvasId, label, suggestedMax){
     const ctx = document.getElementById(canvasId).getContext("2d");
     return new Chart(ctx, {
       type: "line",
-      data: { labels: [], datasets: [{
-        label,
-        data: [],
-        borderWidth: 2,
-        pointRadius: 0,
-        tension: 0.25,
-        fill: false,
-        spanGaps: true   // ✅ dibuja aunque haya NaN en algunos puntos
-      }]},
+      data: {
+        labels: [],
+        datasets: [{
+          label,
+          data: [],
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.25,
+          fill: false
+        }]
+      },
       options: {
         responsive: true,
         animation: { duration: 200 },
-        parsing: false,
         interaction: { mode: "nearest", intersect: false },
         plugins: {
           legend: { display: true },
-          tooltip: { enabled: true, mode: "nearest", intersect: false },
-          decimation: { enabled: true, algorithm: "min-max" }
+          tooltip: { enabled: true, mode: "nearest", intersect: false }
         },
         scales: {
           x: { ticks: { maxRotation: 0, autoSkip: true }, grid: { display: false } },
-          y: { beginAtZero: true, suggestedMax, grid: { color: "rgba(255,255,255,.06)" } }
+          y: { beginAtZero: true, suggestedMax: suggestedMax, grid: { color: "rgba(255,255,255,.06)" } }
         }
       }
     });
@@ -172,45 +186,67 @@
   const chTemp = makeLineChart("chTemp", "Temperatura (°C)", 120);
   const chVolt = makeLineChart("chVolt", "Voltaje (V)", 30);
   const chCorr = makeLineChart("chCorr", "Corriente (A)", 10);
-  const chPot  = makeLineChart("chPot",  "Potencia (W)", 200);
+  const chPot  = makeLineChart("chPot",  "Potencia (W)", 300);
   const chRad  = makeLineChart("chRad",  "Radiómetro", 4096);
 
-  function hhmmss(row){
+  const ALL_CHARTS = [chTemp, chVolt, chCorr, chPot, chRad];
+
+  // ========= TABS (IMPORTANTE: resize al cambiar) =========
+  const tabBtns = document.querySelectorAll(".btn[data-tab]");
+  const tabs = document.querySelectorAll(".tab");
+
+  function resizeCharts(){
+    // fuerza recálculo de tamaño (soluciona “línea invisible”)
+    requestAnimationFrame(() => {
+      ALL_CHARTS.forEach(c => { try { c.resize(); c.update(); } catch(e){} });
+    });
+  }
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      tabBtns.forEach(b => b.classList.remove("active"));
+      tabs.forEach(t => t.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById(btn.dataset.tab).classList.add("active");
+      resizeCharts();
+    });
+  });
+
+  // ========= HELPERS =========
+  function pad2(n){ return String(n).padStart(2,"0"); }
+
+  function labelFromRow(row){
+    // solo hora HH:MM:SS (sin microsegundos)
     return (row.hora || "00:00:00").split(".")[0];
   }
 
-  // ✅ Orden seguro SIN Date() (no hay zona horaria, no se mueve)
-  function sortKey(row){
-    return `${row.fecha || "0000-00-00"}T${hhmmss(row)}`;
-  }
-
-  function numOrNaN(x){
+  function toNumOrNull(x){
     const n = Number(x);
-    return Number.isFinite(n) ? n : NaN;  // ✅ NaN para que Chart ignore el punto sin romper todo
+    return Number.isFinite(n) ? n : null;
   }
 
   async function getData(){
     const res = await fetch(API_URL, { cache:"no-store" });
     if(!res.ok) throw new Error("API error " + res.status);
-    const rows = await res.json();
+    let rows = await res.json();
 
-    // Orden cronológico: viejo -> nuevo
-    rows.sort((a,b) => sortKey(a).localeCompare(sortKey(b)));
+    // tu API viene DESC (nuevo->viejo), lo ordenamos ASC
+    rows.sort((a,b) => (a.id ?? 0) - (b.id ?? 0));
+
+    // ventana visible
+    const view = rows.slice(-MAX_POINTS);
+
+    // labels y series
+    const labels = view.map(labelFromRow);
+    const temp = view.map(d => toNumOrNull(d.temperatura));
+    const volt = view.map(d => toNumOrNull(d.voltaje));
+    const corr = view.map(d => toNumOrNull(d.corriente));
+    const pot  = view.map(d => toNumOrNull(d.potencia));
+    const rad  = view.map(d => toNumOrNull(d.radiometro));
 
     document.getElementById("count").textContent = rows.length;
 
-    const view = rows.slice(-MAX_POINTS);
-    const labels = view.map(r => hhmmss(r)); // ✅ usa la hora tal cual viene del servidor
-
-    return {
-      labels,
-      temp: view.map(d => numOrNaN(d.temperatura)),
-      volt: view.map(d => numOrNaN(d.voltaje)),
-      corr: view.map(d => numOrNaN(d.corriente)),
-      pot : view.map(d => numOrNaN(d.potencia)),
-      rad : view.map(d => numOrNaN(d.radiometro)),
-      all : rows
-    };
+    return { labels, temp, volt, corr, pot, rad };
   }
 
   function setChart(chart, labels, data){
@@ -227,20 +263,23 @@
       setChart(chCorr, d.labels, d.corr);
       setChart(chPot,  d.labels, d.pot);
       setChart(chRad,  d.labels, d.rad);
+
+      // por seguridad, cuando actualiza también re-resize
+      resizeCharts();
+
     }catch(e){
       console.log("refresh error:", e);
     }
   }
 
-  // CSV
-  function pad2(n){ return String(n).padStart(2,"0"); }
+  // ========= CSV DOWNLOAD =========
   function toCSV(rows){
     const header = ["fecha","hora","voltaje","corriente","potencia","radiometro","temperatura"];
     const lines = [header.join(",")];
     for(const r of rows){
       lines.push([
         r.fecha ?? "",
-        hhmmss(r),
+        (r.hora ?? "").split(".")[0],
         r.voltaje ?? "",
         r.corriente ?? "",
         r.potencia ?? "",
@@ -253,8 +292,8 @@
 
   document.getElementById("btnCSV").addEventListener("click", async () => {
     const res = await fetch(API_URL, { cache:"no-store" });
-    const rows = await res.json();
-    rows.sort((a,b) => sortKey(a).localeCompare(sortKey(b)));
+    let rows = await res.json();
+    rows.sort((a,b) => (a.id ?? 0) - (b.id ?? 0));
 
     const csv = toCSV(rows);
     const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
@@ -270,8 +309,11 @@
     URL.revokeObjectURL(url);
   });
 
+  // ========= START =========
   refresh();
   setInterval(refresh, REFRESH_MS);
+  // primer resize extra (por si carga lento)
+  setTimeout(resizeCharts, 800);
 </script>
 </body>
 </html>
