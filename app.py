@@ -10,6 +10,8 @@ app = Flask(__name__)
 # CONFIGURACIÓN DB (Render)
 # =============================
 DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("Falta DATABASE_URL en variables de entorno de Render")
 
 def get_conn():
     return psycopg2.connect(DATABASE_URL, sslmode="require")
@@ -20,6 +22,7 @@ def init_db():
     conn = get_conn()
     cur = conn.cursor()
 
+    # Tabla (si no existe)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS mediciones (
             id SERIAL PRIMARY KEY,
@@ -29,7 +32,7 @@ def init_db():
             fecha DATE,
             hora TIME,
 
-            -- ESP32 S2 (actual)
+            -- ESP32 S2
             voltaje REAL,
             corriente REAL,
             potencia REAL,
@@ -43,20 +46,15 @@ def init_db():
         )
     """)
 
-    # Evita errores si la tabla ya existía
+    # Si la tabla ya existía, asegura columnas (sin romper nada)
     cur.execute("ALTER TABLE mediciones ADD COLUMN IF NOT EXISTS device TEXT NOT NULL DEFAULT 's2';")
     cur.execute("ALTER TABLE mediciones ADD COLUMN IF NOT EXISTS ts TIMESTAMPTZ NOT NULL DEFAULT NOW();")
     cur.execute("ALTER TABLE mediciones ADD COLUMN IF NOT EXISTS fecha DATE;")
     cur.execute("ALTER TABLE mediciones ADD COLUMN IF NOT EXISTS hora TIME;")
 
-    # S2
-    cur.execute("ALTER TABLE mediciones ADD COLUMN IF NOT EXISTS voltaje REAL;")
-    cur.execute("ALTER TABLE mediciones ADD COLUMN IF NOT EXISTS corriente REAL;")
-    cur.execute("ALTER TABLE mediciones ADD COLUMN IF NOT EXISTS potencia REAL;")
-    cur.execute("ALTER TABLE mediciones ADD COLUMN IF NOT EXISTS radiometro REAL;")
-    cur.execute("ALTER TABLE mediciones ADD COLUMN IF NOT EXISTS temperatura REAL;")
+    for col in ["voltaje","corriente","potencia","radiometro","temperatura"]:
+        cur.execute(f"ALTER TABLE mediciones ADD COLUMN IF NOT EXISTS {col} REAL;")
 
-    # WROOM
     for col in [
         "voltaje1","voltaje2","voltaje3",
         "corriente1","corriente2","corriente3",
@@ -71,36 +69,24 @@ def init_db():
 init_db()
 
 # =============================
-# HELPERS
+# UTILIDADES
 # =============================
-def rows_to_json(rows):
-    datos = []
-    for r in rows:
-        datos.append({
-            "id": r[0],
-            "device": r[1],
-            "fecha": str(r[2]) if r[2] else None,
-            "hora": str(r[3]) if r[3] else None,
+def to_float_or_none(x):
+    if x is None:
+        return None
+    try:
+        return float(x)
+    except Exception:
+        return None
 
-            "voltaje": r[4],
-            "corriente": r[5],
-            "potencia": r[6],
-            "radiometro": r[7],
-            "temperatura": r[8],
+def now_mx():
+    return datetime.now(MX_TZ)
 
-            "voltaje1": r[9],  "voltaje2": r[10], "voltaje3": r[11],
-            "corriente1": r[12], "corriente2": r[13], "corriente3": r[14],
-            "potencia1": r[15], "potencia2": r[16], "potencia3": r[17],
-        })
-    return datos
-
-def csv_escape(v):
-    if v is None:
-        return ""
-    s = str(v)
-    if any(c in s for c in [",", '"', "\n", "\r"]):
-        s = '"' + s.replace('"', '""') + '"'
-    return s
+def hora_str(t):
+    # Siempre HH:MM:SS sin microsegundos
+    if not t:
+        return None
+    return t.strftime("%H:%M:%S")
 
 # =============================
 # RUTAS
@@ -111,8 +97,8 @@ def index():
 
 @app.route("/api/health")
 def health():
-    now_mx = datetime.now(MX_TZ)
-    return jsonify({"mx_time": now_mx.strftime("%Y-%m-%d %H:%M:%S"), "status": "ok"})
+    n = now_mx()
+    return jsonify({"mx_time": n.strftime("%Y-%m-%d %H:%M:%S"), "status": "ok"})
 
 @app.route("/api/data", methods=["POST"])
 def recibir_datos():
@@ -120,21 +106,27 @@ def recibir_datos():
 
     device = (data.get("device") or "s2").strip().lower()
 
-    now_mx = datetime.now(MX_TZ)
-    fecha = now_mx.date()
-    hora = now_mx.time().replace(microsecond=0)
+    n = now_mx()
+    fecha = n.date()
+    hora = n.time().replace(microsecond=0)  # ✅ guarda sin microsegundos
 
-    # Campos S2
-    voltaje = data.get("voltaje")
-    corriente = data.get("corriente")
-    potencia = data.get("potencia")
-    radiometro = data.get("radiometro")
-    temperatura = data.get("temperatura")
+    # S2
+    voltaje = to_float_or_none(data.get("voltaje"))
+    corriente = to_float_or_none(data.get("corriente"))
+    potencia = to_float_or_none(data.get("potencia"))
+    radiometro = to_float_or_none(data.get("radiometro"))
+    temperatura = to_float_or_none(data.get("temperatura"))
 
-    # Campos WROOM
-    v1 = data.get("voltaje1"); v2 = data.get("voltaje2"); v3 = data.get("voltaje3")
-    c1 = data.get("corriente1"); c2 = data.get("corriente2"); c3 = data.get("corriente3")
-    p1 = data.get("potencia1"); p2 = data.get("potencia2"); p3 = data.get("potencia3")
+    # WROOM
+    v1 = to_float_or_none(data.get("voltaje1"))
+    v2 = to_float_or_none(data.get("voltaje2"))
+    v3 = to_float_or_none(data.get("voltaje3"))
+    c1 = to_float_or_none(data.get("corriente1"))
+    c2 = to_float_or_none(data.get("corriente2"))
+    c3 = to_float_or_none(data.get("corriente3"))
+    p1 = to_float_or_none(data.get("potencia1"))
+    p2 = to_float_or_none(data.get("potencia2"))
+    p3 = to_float_or_none(data.get("potencia3"))
 
     conn = get_conn()
     cur = conn.cursor()
@@ -152,7 +144,7 @@ def recibir_datos():
          %s, %s, %s,
          %s, %s, %s)
     """, (
-        device, now_mx, fecha, hora,
+        device, n, fecha, hora,
         voltaje, corriente, potencia, radiometro, temperatura,
         v1, v2, v3,
         c1, c2, c3,
@@ -164,11 +156,10 @@ def recibir_datos():
 
     return jsonify({"status": "ok", "device": device})
 
-# ✅ GET por device (para tus gráficas actuales)
 @app.route("/api/data", methods=["GET"])
 def obtener_datos():
     device = (request.args.get("device") or "s2").strip().lower()
-    limit = 300
+    limit = int(request.args.get("limit", "300"))
 
     conn = get_conn()
     cur = conn.cursor()
@@ -187,40 +178,38 @@ def obtener_datos():
     cur.close()
     conn.close()
 
-    return jsonify(rows_to_json(rows))
+    datos = []
+    for r in rows:
+        datos.append({
+            "id": r[0],
+            "device": r[1],
+            "fecha": str(r[2]) if r[2] else None,
+            "hora": hora_str(r[3]),  # ✅ HH:MM:SS sin microsegundos
 
-# ✅ NUEVO: GET de TODO junto (sin importar la tarjeta)
-@app.route("/api/data/all", methods=["GET"])
-def obtener_datos_todos():
-    limit = int(request.args.get("limit", "2000"))
+            "voltaje": r[4],
+            "corriente": r[5],
+            "potencia": r[6],
+            "radiometro": r[7],
+            "temperatura": r[8],
 
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT id, device, fecha, hora,
-               voltaje, corriente, potencia, radiometro, temperatura,
-               voltaje1, voltaje2, voltaje3,
-               corriente1, corriente2, corriente3,
-               potencia1, potencia2, potencia3
-        FROM mediciones
-        ORDER BY id DESC
-        LIMIT %s
-    """, (limit,))
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+            "voltaje1": r[9],  "voltaje2": r[10], "voltaje3": r[11],
+            "corriente1": r[12],"corriente2": r[13],"corriente3": r[14],
+            "potencia1": r[15], "potencia2": r[16], "potencia3": r[17],
+        })
 
-    return jsonify(rows_to_json(rows))
+    return jsonify(datos)
 
-# ✅ NUEVO: CSV único con TODO (para Excel)
-@app.route("/api/csv/all", methods=["GET"])
-def descargar_csv_todos():
+# =============================
+# CSV UNIFICADO (1 botón)
+# =============================
+@app.route("/api/csv", methods=["GET"])
+def descargar_csv():
     limit = int(request.args.get("limit", "20000"))
 
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
-        SELECT id, device, fecha, hora,
+        SELECT id, fecha, hora,
                voltaje, corriente, potencia, radiometro, temperatura,
                voltaje1, voltaje2, voltaje3,
                corriente1, corriente2, corriente3,
@@ -233,29 +222,34 @@ def descargar_csv_todos():
     cur.close()
     conn.close()
 
-    # Header (todas las columnas)
     header = [
-        "id","device","fecha","hora",
+        "id","fecha","hora",
         "voltaje","corriente","potencia","radiometro","temperatura",
         "voltaje1","voltaje2","voltaje3",
         "corriente1","corriente2","corriente3",
         "potencia1","potencia2","potencia3"
     ]
 
+    def esc(v):
+        if v is None:
+            return ""
+        return str(v)
+
     def generate():
         yield ",".join(header) + "\n"
         for r in rows:
-            line = [
-                r[0], r[1], r[2], r[3],
-                r[4], r[5], r[6], r[7], r[8],
-                r[9], r[10], r[11],
-                r[12], r[13], r[14],
-                r[15], r[16], r[17],
+            h = r[2].strftime("%H:%M:%S") if r[2] else ""
+            fila = [
+                r[0], r[1], h,
+                r[3], r[4], r[5], r[6], r[7],
+                r[8], r[9], r[10],
+                r[11], r[12], r[13],
+                r[14], r[15], r[16]
             ]
-            yield ",".join(csv_escape(v) for v in line) + "\n"
+            yield ",".join(esc(x) for x in fila) + "\n"
 
-    now_mx = datetime.now(MX_TZ)
-    filename = f"mediciones_todas_{now_mx.strftime('%Y-%m-%d_%H%M')}.csv"
+    n = now_mx()
+    filename = f"mediciones_{n.strftime('%Y-%m-%d_%H%M')}.csv"
 
     return Response(
         generate(),
@@ -263,5 +257,8 @@ def descargar_csv_todos():
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
 
+# Render usa gunicorn; esto solo es para local
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
+     
