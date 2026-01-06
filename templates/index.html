@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Monitoreo ESP32 en la nube</title>
-
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
@@ -35,20 +34,13 @@
     }
     .sub{color:var(--muted);margin:0 0 18px}
     .topbar{
-      display:flex;
-      flex-wrap:wrap;
-      justify-content:center;
-      gap:10px;
-      margin:14px 0 18px;
+      display:flex; flex-wrap:wrap; justify-content:center;
+      gap:10px; margin:14px 0 18px;
     }
     .btn{
-      border:none;
-      padding:10px 16px;
-      border-radius:12px;
-      background:var(--btn);
-      color:var(--txt);
-      cursor:pointer;
-      font-weight:700;
+      border:none; padding:10px 16px; border-radius:12px;
+      background:var(--btn); color:var(--txt);
+      cursor:pointer; font-weight:700;
       transition:transform .08s ease, background .15s ease;
     }
     .btn:active{transform:scale(.98)}
@@ -67,31 +59,17 @@
     }
     .tab{display:none}
     .tab.active{display:block}
-    .grid2{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:14px;
-    }
-    @media (max-width:900px){
-      .grid2{grid-template-columns:1fr}
-    }
+    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+    @media (max-width:900px){ .grid2{grid-template-columns:1fr} }
     .card{
       background: radial-gradient(900px 320px at 50% 0px, rgba(255,255,255,.06), transparent 65%), var(--card);
       border:1px solid rgba(255,255,255,.06);
       border-radius:22px;
       padding:16px 14px 10px;
     }
-    .card h2{
-      margin:8px 0 8px;
-      font-size:20px;
-      font-weight:800;
-    }
+    .card h2{ margin:8px 0 8px; font-size:20px; font-weight:800; }
     canvas{width:100% !important; height:320px !important;}
-    .hint{
-      margin-top:10px;
-      color:var(--muted);
-      font-size:13px;
-    }
+    .hint{ margin-top:10px; color:var(--muted); font-size:13px; }
   </style>
 </head>
 
@@ -108,7 +86,6 @@
     </div>
 
     <div class="cards">
-      <!-- TAB TEMPERATURA -->
       <div id="tTemp" class="tab active">
         <div class="card">
           <h2>Temperatura (°C)</h2>
@@ -117,7 +94,6 @@
         </div>
       </div>
 
-      <!-- TAB SENSORES -->
       <div id="tSens" class="tab">
         <div class="grid2">
           <div class="card">
@@ -136,7 +112,6 @@
         </div>
       </div>
 
-      <!-- TAB RADIÓMETRO -->
       <div id="tRad" class="tab">
         <div class="card">
           <h2>Radiómetro</h2>
@@ -147,12 +122,11 @@
   </div>
 
 <script>
-  // ========= CONFIG =========
-  const API_URL = "/api/data";         // IMPORTANTE: relativo (Render)
-  const MAX_POINTS = 120;              // puntos visibles (ventana)
-  const REFRESH_MS = 3000;             // refresco UI
+  const API_URL = "/api/data";
+  const MAX_POINTS = 120;
+  const REFRESH_MS = 3000;
 
-  // ========= TABS =========
+  // Tabs
   const tabBtns = document.querySelectorAll(".btn[data-tab]");
   const tabs = document.querySelectorAll(".tab");
   tabBtns.forEach(btn => {
@@ -164,25 +138,22 @@
     });
   });
 
-  // ========= CHART FACTORY =========
   function makeLineChart(canvasId, label, suggestedMax){
     const ctx = document.getElementById(canvasId).getContext("2d");
     return new Chart(ctx, {
       type: "line",
-      data: {
-        labels: [],
-        datasets: [{
-          label,
-          data: [],
-          borderWidth: 2,
-          pointRadius: 0,
-          tension: 0.25,
-          fill: false
-        }]
-      },
+      data: { labels: [], datasets: [{
+        label,
+        data: [],
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.25,
+        fill: false,
+        spanGaps: true   // ✅ dibuja aunque haya NaN en algunos puntos
+      }]},
       options: {
         responsive: true,
-        animation: { duration: 250 },
+        animation: { duration: 200 },
         parsing: false,
         interaction: { mode: "nearest", intersect: false },
         plugins: {
@@ -191,15 +162,8 @@
           decimation: { enabled: true, algorithm: "min-max" }
         },
         scales: {
-          x: {
-            ticks: { maxRotation: 0, autoSkip: true },
-            grid: { display: false }
-          },
-          y: {
-            beginAtZero: true,
-            suggestedMax: suggestedMax,
-            grid: { color: "rgba(255,255,255,.06)" }
-          }
+          x: { ticks: { maxRotation: 0, autoSkip: true }, grid: { display: false } },
+          y: { beginAtZero: true, suggestedMax, grid: { color: "rgba(255,255,255,.06)" } }
         }
       }
     });
@@ -211,56 +175,40 @@
   const chPot  = makeLineChart("chPot",  "Potencia (W)", 200);
   const chRad  = makeLineChart("chRad",  "Radiómetro", 4096);
 
-  // ========= HELPERS =========
-  function hhmmss(r){
-    return (r.hora || "00:00:00").split(".")[0]; // quita microsegundos
+  function hhmmss(row){
+    return (row.hora || "00:00:00").split(".")[0];
   }
 
-  function toDateLocal(r){
-    // ✅ SIN "Z" y SIN UTC: lo que viene ya es hora local del servidor
-    return new Date(`${r.fecha}T${hhmmss(r)}`);
+  // ✅ Orden seguro SIN Date() (no hay zona horaria, no se mueve)
+  function sortKey(row){
+    return `${row.fecha || "0000-00-00"}T${hhmmss(row)}`;
   }
 
-  function toLocalLabel(r){
-    const dt = toDateLocal(r);
-    return dt.toLocaleTimeString("es-MX", {
-      hour12: false,
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit"
-    });
-  }
-
-  function num(x){
-    if (x === null || x === undefined) return null;
+  function numOrNaN(x){
     const n = Number(x);
-    return Number.isFinite(n) ? n : null;
+    return Number.isFinite(n) ? n : NaN;  // ✅ NaN para que Chart ignore el punto sin romper todo
   }
 
-  // ========= FETCH + UPDATE =========
   async function getData(){
     const res = await fetch(API_URL, { cache:"no-store" });
     if(!res.ok) throw new Error("API error " + res.status);
     const rows = await res.json();
 
     // Orden cronológico: viejo -> nuevo
-    rows.sort((a,b) => toDateLocal(a) - toDateLocal(b));
+    rows.sort((a,b) => sortKey(a).localeCompare(sortKey(b)));
 
-    // contador total real
     document.getElementById("count").textContent = rows.length;
 
-    // ventana visible (últimos puntos)
     const view = rows.slice(-MAX_POINTS);
-
-    const labels = view.map(toLocalLabel);
+    const labels = view.map(r => hhmmss(r)); // ✅ usa la hora tal cual viene del servidor
 
     return {
       labels,
-      temp: view.map(d => num(d.temperatura)),
-      volt: view.map(d => num(d.voltaje)),
-      corr: view.map(d => num(d.corriente)),
-      pot : view.map(d => num(d.potencia)),
-      rad : view.map(d => num(d.radiometro)),
+      temp: view.map(d => numOrNaN(d.temperatura)),
+      volt: view.map(d => numOrNaN(d.voltaje)),
+      corr: view.map(d => numOrNaN(d.corriente)),
+      pot : view.map(d => numOrNaN(d.potencia)),
+      rad : view.map(d => numOrNaN(d.radiometro)),
       all : rows
     };
   }
@@ -284,13 +232,11 @@
     }
   }
 
-  // ========= CSV =========
+  // CSV
   function pad2(n){ return String(n).padStart(2,"0"); }
-
   function toCSV(rows){
     const header = ["fecha","hora","voltaje","corriente","potencia","radiometro","temperatura"];
     const lines = [header.join(",")];
-
     for(const r of rows){
       lines.push([
         r.fecha ?? "",
@@ -308,15 +254,15 @@
   document.getElementById("btnCSV").addEventListener("click", async () => {
     const res = await fetch(API_URL, { cache:"no-store" });
     const rows = await res.json();
-    rows.sort((a,b) => toDateLocal(a) - toDateLocal(b));
+    rows.sort((a,b) => sortKey(a).localeCompare(sortKey(b)));
 
     const csv = toCSV(rows);
     const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
     const url = URL.createObjectURL(blob);
 
-    const now = new Date();
     const a = document.createElement("a");
     a.href = url;
+    const now = new Date();
     a.download = `esp32_${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(now.getDate())}_${pad2(now.getHours())}${pad2(now.getMinutes())}.csv`;
     document.body.appendChild(a);
     a.click();
@@ -324,7 +270,6 @@
     URL.revokeObjectURL(url);
   });
 
-  // ========= START =========
   refresh();
   setInterval(refresh, REFRESH_MS);
 </script>
