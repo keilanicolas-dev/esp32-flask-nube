@@ -64,6 +64,7 @@
     }
     .tab{display:none}
     .tab.active{display:block}
+
     .grid2{
       display:grid;
       grid-template-columns:1fr 1fr;
@@ -80,6 +81,7 @@
     @media (max-width:900px){
       .grid2{grid-template-columns:1fr}
     }
+
     .card{
       background: radial-gradient(900px 320px at 50% 0px, rgba(255,255,255,.06), transparent 65%), var(--card);
       border:1px solid rgba(255,255,255,.06);
@@ -94,6 +96,12 @@
     canvas{width:100% !important; height:280px !important;}
     .hint{margin-top:10px;color:var(--muted);font-size:13px}
     .split{height:14px}
+    .sectionTitle{
+      margin:0 0 10px;
+      color:var(--muted);
+      font-weight:800;
+      letter-spacing:.3px;
+    }
   </style>
 </head>
 
@@ -107,9 +115,9 @@
 
     <div class="topbar">
       <button class="btn active" data-tab="tTemp">Temperatura (°C)</button>
-      <button class="btn" data-tab="tSens">Sensores 1 (S2)</button>
+      <button class="btn" data-tab="tSens">Sensores de paneles (S2)</button>
       <button class="btn" data-tab="tRad">Radiómetro (S2)</button>
-      <button class="btn" data-tab="tWroom">WROOM (9 gráficas)</button>
+      <button class="btn" data-tab="tWroom">WROOM (3 paneles)</button>
       <button class="btn csv" id="btnCSV">📥 Descargar CSV (S2)</button>
     </div>
 
@@ -124,7 +132,7 @@
         </div>
       </div>
 
-      <!-- TAB SENSORES (S2) -->
+      <!-- TAB SENSORES DE PANELES (S2) -->
       <div id="tSens" class="tab">
         <div class="grid2">
           <div class="card">
@@ -151,35 +159,36 @@
         </div>
       </div>
 
-      <!-- TAB WROOM (9 gráficas) -->
+      <!-- TAB WROOM (3 PANELES) -->
       <div id="tWroom" class="tab">
+
         <div class="card">
-          <h2>WROOM - Voltajes</h2>
+          <div class="sectionTitle">Panel 1 (WROOM)</div>
           <div class="grid3">
             <div class="card"><h2>Voltaje 1 (V)</h2><canvas id="chWV1"></canvas></div>
-            <div class="card"><h2>Voltaje 2 (V)</h2><canvas id="chWV2"></canvas></div>
-            <div class="card"><h2>Voltaje 3 (V)</h2><canvas id="chWV3"></canvas></div>
-          </div>
-        </div>
-
-        <div class="split"></div>
-
-        <div class="card">
-          <h2>WROOM - Corrientes</h2>
-          <div class="grid3">
             <div class="card"><h2>Corriente 1 (A)</h2><canvas id="chWC1"></canvas></div>
-            <div class="card"><h2>Corriente 2 (A)</h2><canvas id="chWC2"></canvas></div>
-            <div class="card"><h2>Corriente 3 (A)</h2><canvas id="chWC3"></canvas></div>
+            <div class="card"><h2>Potencia 1 (W)</h2><canvas id="chWP1"></canvas></div>
           </div>
         </div>
 
         <div class="split"></div>
 
         <div class="card">
-          <h2>WROOM - Potencias</h2>
+          <div class="sectionTitle">Panel 2 (WROOM)</div>
           <div class="grid3">
-            <div class="card"><h2>Potencia 1 (W)</h2><canvas id="chWP1"></canvas></div>
+            <div class="card"><h2>Voltaje 2 (V)</h2><canvas id="chWV2"></canvas></div>
+            <div class="card"><h2>Corriente 2 (A)</h2><canvas id="chWC2"></canvas></div>
             <div class="card"><h2>Potencia 2 (W)</h2><canvas id="chWP2"></canvas></div>
+          </div>
+        </div>
+
+        <div class="split"></div>
+
+        <div class="card">
+          <div class="sectionTitle">Panel 3 (WROOM)</div>
+          <div class="grid3">
+            <div class="card"><h2>Voltaje 3 (V)</h2><canvas id="chWV3"></canvas></div>
+            <div class="card"><h2>Corriente 3 (A)</h2><canvas id="chWC3"></canvas></div>
             <div class="card"><h2>Potencia 3 (W)</h2><canvas id="chWP3"></canvas></div>
           </div>
         </div>
@@ -250,50 +259,43 @@
   const chPot  = makeLineChart("chPot",  "Potencia (W)", 200);
   const chRad  = makeLineChart("chRad",  "Radiómetro", 4096);
 
-  // WROOM (9)
+  // WROOM (Panel 1..3)
   const chWV1 = makeLineChart("chWV1", "Voltaje 1 (V)", 30);
-  const chWV2 = makeLineChart("chWV2", "Voltaje 2 (V)", 30);
-  const chWV3 = makeLineChart("chWV3", "Voltaje 3 (V)", 30);
-
   const chWC1 = makeLineChart("chWC1", "Corriente 1 (A)", 10);
-  const chWC2 = makeLineChart("chWC2", "Corriente 2 (A)", 10);
-  const chWC3 = makeLineChart("chWC3", "Corriente 3 (A)", 10);
-
   const chWP1 = makeLineChart("chWP1", "Potencia 1 (W)", 200);
+
+  const chWV2 = makeLineChart("chWV2", "Voltaje 2 (V)", 30);
+  const chWC2 = makeLineChart("chWC2", "Corriente 2 (A)", 10);
   const chWP2 = makeLineChart("chWP2", "Potencia 2 (W)", 200);
+
+  const chWV3 = makeLineChart("chWV3", "Voltaje 3 (V)", 30);
+  const chWC3 = makeLineChart("chWC3", "Corriente 3 (A)", 10);
   const chWP3 = makeLineChart("chWP3", "Potencia 3 (W)", 200);
 
   // ========= HELPERS =========
   function parseDateTime(row){
     const h = (row.hora || "00:00:00").split(".")[0];
-    // Importante: fecha/hora ya vienen en hora MX del servidor
     return new Date(`${row.fecha}T${h}`);
   }
   function labelFromRow(row){
-    return (row.hora || "00:00:00").split(".")[0]; // HH:MM:SS
+    return (row.hora || "00:00:00").split(".")[0];
   }
   function nval(x){
     const n = Number(x);
     return Number.isFinite(n) ? n : null;
   }
-
   function normalize(arr){
-    // API viene DESC (nuevo -> viejo). Lo dejamos ASC y recortamos ventana.
     const ordered = [...arr].sort((a,b) => parseDateTime(a) - parseDateTime(b));
     const view = ordered.slice(-MAX_POINTS);
-    return {
-      total: arr.length,
-      labels: view.map(labelFromRow),
-      view
-    };
+    return { total: arr.length, labels: view.map(labelFromRow), view };
   }
-
   function setChart(chart, labels, data){
     chart.data.labels = labels;
     chart.data.datasets[0].data = data;
     chart.update();
   }
 
+  // ========= REFRESH =========
   async function refresh(){
     try{
       const [s2Res, wRes] = await Promise.all([
@@ -314,17 +316,17 @@
       setChart(chPot,  s2.labels, s2.view.map(d => nval(d.potencia)));
       setChart(chRad,  s2.labels, s2.view.map(d => nval(d.radiometro)));
 
-      // --- WROOM series ---
+      // --- WROOM series (Panel 1..3) ---
       setChart(chWV1, w.labels, w.view.map(d => nval(d.voltaje1)));
-      setChart(chWV2, w.labels, w.view.map(d => nval(d.voltaje2)));
-      setChart(chWV3, w.labels, w.view.map(d => nval(d.voltaje3)));
-
       setChart(chWC1, w.labels, w.view.map(d => nval(d.corriente1)));
-      setChart(chWC2, w.labels, w.view.map(d => nval(d.corriente2)));
-      setChart(chWC3, w.labels, w.view.map(d => nval(d.corriente3)));
-
       setChart(chWP1, w.labels, w.view.map(d => nval(d.potencia1)));
+
+      setChart(chWV2, w.labels, w.view.map(d => nval(d.voltaje2)));
+      setChart(chWC2, w.labels, w.view.map(d => nval(d.corriente2)));
       setChart(chWP2, w.labels, w.view.map(d => nval(d.potencia2)));
+
+      setChart(chWV3, w.labels, w.view.map(d => nval(d.voltaje3)));
+      setChart(chWC3, w.labels, w.view.map(d => nval(d.corriente3)));
       setChart(chWP3, w.labels, w.view.map(d => nval(d.potencia3)));
 
     }catch(e){
@@ -332,7 +334,7 @@
     }
   }
 
-  // ========= CSV (solo S2 por ahora) =========
+  // ========= CSV (solo S2) =========
   function toCSV(rows){
     const header = ["fecha","hora","voltaje","corriente","potencia","radiometro","temperatura"];
     const lines = [header.join(",")];
