@@ -71,6 +71,14 @@
       grid-template-columns:1fr 1fr;
       gap:14px;
     }
+    .grid3{
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:14px;
+    }
+    @media (max-width:1000px){
+      .grid3{grid-template-columns:1fr}
+    }
     @media (max-width:900px){
       .grid2{grid-template-columns:1fr}
     }
@@ -97,45 +105,45 @@
 <body>
   <div class="wrap">
     <h1>Monitoreo ESP32 en la nube</h1>
-    <p class="sub">Registros: <span id="count">0</span></p>
+    <p class="sub">Registros (ventana): <span id="count">0</span></p>
 
     <div class="topbar">
       <button class="btn active" data-tab="tTemp">Temperatura (°C)</button>
-      <button class="btn" data-tab="tPaneles">Sensores de paneles</button>
+      <button class="btn" data-tab="tPanel">Sensores de Paneles</button>
       <button class="btn" data-tab="tRad">Radiómetro</button>
 
-      <button class="btn" data-tab="tW1">WROOM 1</button>
-      <button class="btn" data-tab="tW2">WROOM 2</button>
-      <button class="btn" data-tab="tW3">WROOM 3</button>
+      <button class="btn" data-tab="tW1">WROOM - Canal 1</button>
+      <button class="btn" data-tab="tW2">WROOM - Canal 2</button>
+      <button class="btn" data-tab="tW3">WROOM - Canal 3</button>
 
-      <button class="btn csv" id="btnCSV">📥 Descargar CSV</button>
+      <button class="btn csv" id="btnCSV">📥 Descargar CSV (TODO)</button>
     </div>
 
     <div class="cards">
       <!-- TAB TEMPERATURA (S2) -->
       <div id="tTemp" class="tab active">
         <div class="card">
-          <h2>Temperatura (°C)</h2>
+          <h2>Temperatura (°C) - ESP32 S2</h2>
           <canvas id="chTemp"></canvas>
           <div class="hint">Tip: pasa el dedo/ratón sobre la línea para ver el valor.</div>
         </div>
       </div>
 
-      <!-- TAB PANELES (S2) -->
-      <div id="tPaneles" class="tab">
+      <!-- TAB SENSORES DE PANELES (S2) -->
+      <div id="tPanel" class="tab">
         <div class="grid2">
           <div class="card">
-            <h2>Voltaje (V)</h2>
+            <h2>Voltaje (V) - S2</h2>
             <canvas id="chVolt"></canvas>
           </div>
           <div class="card">
-            <h2>Corriente (A)</h2>
+            <h2>Corriente (A) - S2</h2>
             <canvas id="chCorr"></canvas>
           </div>
         </div>
         <div style="height:14px"></div>
         <div class="card">
-          <h2>Potencia (W)</h2>
+          <h2>Potencia (W) - S2</h2>
           <canvas id="chPot"></canvas>
         </div>
       </div>
@@ -143,52 +151,75 @@
       <!-- TAB RADIÓMETRO (S2) -->
       <div id="tRad" class="tab">
         <div class="card">
-          <h2>Radiómetro</h2>
+          <h2>Radiómetro - ESP32 S2</h2>
           <canvas id="chRad"></canvas>
         </div>
       </div>
 
-      <!-- WROOM 1 -->
+      <!-- WROOM CANAL 1 -->
       <div id="tW1" class="tab">
-        <div class="grid2">
-          <div class="card"><h2>Voltaje 1 (V)</h2><canvas id="chV1"></canvas></div>
-          <div class="card"><h2>Corriente 1 (A)</h2><canvas id="chC1"></canvas></div>
+        <div class="grid3">
+          <div class="card">
+            <h2>Voltaje1 (V) - WROOM</h2>
+            <canvas id="chWv1"></canvas>
+          </div>
+          <div class="card">
+            <h2>Corriente1 (A) - WROOM</h2>
+            <canvas id="chWc1"></canvas>
+          </div>
+          <div class="card">
+            <h2>Potencia1 (W) - WROOM</h2>
+            <canvas id="chWp1"></canvas>
+          </div>
         </div>
-        <div style="height:14px"></div>
-        <div class="card"><h2>Potencia 1 (W)</h2><canvas id="chP1"></canvas></div>
       </div>
 
-      <!-- WROOM 2 -->
+      <!-- WROOM CANAL 2 -->
       <div id="tW2" class="tab">
-        <div class="grid2">
-          <div class="card"><h2>Voltaje 2 (V)</h2><canvas id="chV2"></canvas></div>
-          <div class="card"><h2>Corriente 2 (A)</h2><canvas id="chC2"></canvas></div>
+        <div class="grid3">
+          <div class="card">
+            <h2>Voltaje2 (V) - WROOM</h2>
+            <canvas id="chWv2"></canvas>
+          </div>
+          <div class="card">
+            <h2>Corriente2 (A) - WROOM</h2>
+            <canvas id="chWc2"></canvas>
+          </div>
+          <div class="card">
+            <h2>Potencia2 (W) - WROOM</h2>
+            <canvas id="chWp2"></canvas>
+          </div>
         </div>
-        <div style="height:14px"></div>
-        <div class="card"><h2>Potencia 2 (W)</h2><canvas id="chP2"></canvas></div>
       </div>
 
-      <!-- WROOM 3 -->
+      <!-- WROOM CANAL 3 -->
       <div id="tW3" class="tab">
-        <div class="grid2">
-          <div class="card"><h2>Voltaje 3 (V)</h2><canvas id="chV3"></canvas></div>
-          <div class="card"><h2>Corriente 3 (A)</h2><canvas id="chC3"></canvas></div>
+        <div class="grid3">
+          <div class="card">
+            <h2>Voltaje3 (V) - WROOM</h2>
+            <canvas id="chWv3"></canvas>
+          </div>
+          <div class="card">
+            <h2>Corriente3 (A) - WROOM</h2>
+            <canvas id="chWc3"></canvas>
+          </div>
+          <div class="card">
+            <h2>Potencia3 (W) - WROOM</h2>
+            <canvas id="chWp3"></canvas>
+          </div>
         </div>
-        <div style="height:14px"></div>
-        <div class="card"><h2>Potencia 3 (W)</h2><canvas id="chP3"></canvas></div>
       </div>
+
     </div>
   </div>
 
 <script>
-  // ========= CONFIG =========
-  const API_S2    = "/api/data?device=s2&limit=300";
-  const API_WROOM = "/api/data?device=wroom&limit=300";
-  const CSV_URL   = "/api/csv";
-  const MAX_POINTS = 120;        // ventana visible (evita saturación)
-  const REFRESH_MS = 3000;
+  // ================= CONFIG =================
+  const API_BASE = "/api/data";
+  const MAX_POINTS = 120;   // ventana visible (para que “se vaya recorriendo”)
+  const REFRESH_MS = 2500;
 
-  // ========= TABS =========
+  // ================= TABS =================
   const tabBtns = document.querySelectorAll(".btn[data-tab]");
   const tabs = document.querySelectorAll(".tab");
   tabBtns.forEach(btn => {
@@ -200,30 +231,43 @@
     });
   });
 
-  // ========= CHART FACTORY =========
+  // ================= CHART FACTORY =================
   function makeLineChart(canvasId, label, suggestedMax){
     const ctx = document.getElementById(canvasId).getContext("2d");
     return new Chart(ctx, {
       type: "line",
-      data: { labels: [], datasets: [{
-        label, data: [],
-        borderWidth: 2,
-        pointRadius: 0,
-        tension: 0.25,
-        fill: false
-      }]},
+      data: {
+        labels: [],
+        datasets: [{
+          label,
+          data: [],
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.25,
+          fill: false,
+          spanGaps: true
+        }]
+      },
       options: {
         responsive: true,
         animation: { duration: 250 },
         parsing: false,
         interaction: { mode: "nearest", intersect: false },
         plugins: {
+          legend: { display: true },
           tooltip: { enabled: true, mode: "nearest", intersect: false },
           decimation: { enabled: true, algorithm: "min-max" }
         },
         scales: {
-          x: { ticks: { maxRotation: 0, autoSkip: true }, grid: { display: false } },
-          y: { beginAtZero: true, suggestedMax, grid: { color: "rgba(255,255,255,.06)" } }
+          x: {
+            ticks: { maxRotation: 0, autoSkip: true },
+            grid: { display: false }
+          },
+          y: {
+            beginAtZero: true,
+            suggestedMax: suggestedMax,
+            grid: { color: "rgba(255,255,255,.06)" }
+          }
         }
       }
     });
@@ -236,42 +280,39 @@
   const chPot  = makeLineChart("chPot",  "Potencia (W)", 200);
   const chRad  = makeLineChart("chRad",  "Radiómetro", 4096);
 
-  // WROOM
-  const chV1 = makeLineChart("chV1", "Voltaje 1 (V)", 30);
-  const chC1 = makeLineChart("chC1", "Corriente 1 (A)", 10);
-  const chP1 = makeLineChart("chP1", "Potencia 1 (W)", 200);
+  // WROOM (3 canales)
+  const chWv1 = makeLineChart("chWv1", "Voltaje1 (V)", 30);
+  const chWc1 = makeLineChart("chWc1", "Corriente1 (A)", 10);
+  const chWp1 = makeLineChart("chWp1", "Potencia1 (W)", 200);
 
-  const chV2 = makeLineChart("chV2", "Voltaje 2 (V)", 30);
-  const chC2 = makeLineChart("chC2", "Corriente 2 (A)", 10);
-  const chP2 = makeLineChart("chP2", "Potencia 2 (W)", 200);
+  const chWv2 = makeLineChart("chWv2", "Voltaje2 (V)", 30);
+  const chWc2 = makeLineChart("chWc2", "Corriente2 (A)", 10);
+  const chWp2 = makeLineChart("chWp2", "Potencia2 (W)", 200);
 
-  const chV3 = makeLineChart("chV3", "Voltaje 3 (V)", 30);
-  const chC3 = makeLineChart("chC3", "Corriente 3 (A)", 10);
-  const chP3 = makeLineChart("chP3", "Potencia 3 (W)", 200);
+  const chWv3 = makeLineChart("chWv3", "Voltaje3 (V)", 30);
+  const chWc3 = makeLineChart("chWc3", "Corriente3 (A)", 10);
+  const chWp3 = makeLineChart("chWp3", "Potencia3 (W)", 200);
 
-  // ========= HELPERS =========
+  // ================= HELPERS =================
+  function pad2(n){ return String(n).padStart(2,"0"); }
+
+  // convierte a número seguro (soporta "15,25")
   function clampNumber(x){
     if (x === null || x === undefined) return null;
+    if (typeof x === "string") x = x.replace(",", ".");
     const n = Number(x);
     return Number.isFinite(n) ? n : null;
   }
 
-  function cleanHora(h){
-    if(!h) return "00:00:00";
-    return String(h).split(".")[0]; // ✅ por si viniera con microsegundos
+  // etiqueta HH:MM:SS (sin microsegundos)
+  function labelFromRow(row){
+    const h = (row.hora || "00:00:00").split(".")[0];
+    return h;
   }
 
+  // Orden correcto: SIEMPRE por id asc (viejo→nuevo)
   function sortChronoAsc(arr){
-    // tu API devuelve DESC (nuevo->viejo). La ordenamos ASC para graficar bien.
-    arr.sort((a,b) => {
-      const ta = `${a.fecha||""} ${cleanHora(a.hora)}`;
-      const tb = `${b.fecha||""} ${cleanHora(b.hora)}`;
-      return ta.localeCompare(tb);
-    });
-  }
-
-  function labelsFrom(arr){
-    return arr.map(d => cleanHora(d.hora));
+    arr.sort((a,b) => Number(a.id) - Number(b.id));
   }
 
   function setChart(chart, labels, data){
@@ -280,64 +321,141 @@
     chart.update();
   }
 
-  async function fetchJSON(url){
-    const res = await fetch(url, { cache: "no-store" });
-    if(!res.ok) throw new Error("HTTP " + res.status);
-    return res.json();
+  async function fetchDevice(device){
+    const url = `${API_BASE}?device=${encodeURIComponent(device)}&limit=300`;
+    const res = await fetch(url, { cache:"no-store" });
+    if(!res.ok) throw new Error("API error " + res.status);
+    const arr = await res.json();
+
+    // tu API viene DESC (nuevo→viejo). La ordenamos a ASC (viejo→nuevo)
+    sortChronoAsc(arr);
+
+    // ventana visible
+    const view = arr.slice(-MAX_POINTS);
+
+    return { all: arr, view };
   }
 
-  // ========= REFRESH =========
+  function buildSeries(view){
+    const labels = view.map(labelFromRow);
+    return { labels };
+  }
+
+  // ================= REFRESH =================
   async function refresh(){
     try{
-      // Traemos ambos devices
-      const [s2, w] = await Promise.all([
-        fetchJSON(API_S2),
-        fetchJSON(API_WROOM),
-      ]);
+      // S2
+      const s2 = await fetchDevice("s2");
+      const s2labels = s2.view.map(labelFromRow);
 
-      // Count total (suma)
-      document.getElementById("count").textContent = (s2.length + w.length);
+      const temp = s2.view.map(d => clampNumber(d.temperatura));
+      const volt = s2.view.map(d => clampNumber(d.voltaje));
+      const corr = s2.view.map(d => clampNumber(d.corriente));
+      const pot  = s2.view.map(d => clampNumber(d.potencia));
+      const rad  = s2.view.map(d => clampNumber(d.radiometro));
 
-      // --- S2 ---
-      sortChronoAsc(s2);
-      const s2view = s2.slice(-MAX_POINTS);
-      const labS2 = labelsFrom(s2view);
+      setChart(chTemp, s2labels, temp);
+      setChart(chVolt, s2labels, volt);
+      setChart(chCorr, s2labels, corr);
+      setChart(chPot,  s2labels, pot);
+      setChart(chRad,  s2labels, rad);
 
-      setChart(chTemp, labS2, s2view.map(d => clampNumber(d.temperatura)));
-      setChart(chVolt, labS2, s2view.map(d => clampNumber(d.voltaje)));
-      setChart(chCorr, labS2, s2view.map(d => clampNumber(d.corriente)));
-      setChart(chPot,  labS2, s2view.map(d => clampNumber(d.potencia)));
-      setChart(chRad,  labS2, s2view.map(d => clampNumber(d.radiometro)));
+      // WROOM
+      const wr = await fetchDevice("wroom");
+      const wrlabels = wr.view.map(labelFromRow);
 
-      // --- WROOM ---
-      sortChronoAsc(w);
-      const wview = w.slice(-MAX_POINTS);
-      const labW = labelsFrom(wview);
+      setChart(chWv1, wrlabels, wr.view.map(d=>clampNumber(d.voltaje1)));
+      setChart(chWc1, wrlabels, wr.view.map(d=>clampNumber(d.corriente1)));
+      setChart(chWp1, wrlabels, wr.view.map(d=>clampNumber(d.potencia1)));
 
-      setChart(chV1, labW, wview.map(d => clampNumber(d.voltaje1)));
-      setChart(chC1, labW, wview.map(d => clampNumber(d.corriente1)));
-      setChart(chP1, labW, wview.map(d => clampNumber(d.potencia1)));
+      setChart(chWv2, wrlabels, wr.view.map(d=>clampNumber(d.voltaje2)));
+      setChart(chWc2, wrlabels, wr.view.map(d=>clampNumber(d.corriente2)));
+      setChart(chWp2, wrlabels, wr.view.map(d=>clampNumber(d.potencia2)));
 
-      setChart(chV2, labW, wview.map(d => clampNumber(d.voltaje2)));
-      setChart(chC2, labW, wview.map(d => clampNumber(d.corriente2)));
-      setChart(chP2, labW, wview.map(d => clampNumber(d.potencia2)));
+      setChart(chWv3, wrlabels, wr.view.map(d=>clampNumber(d.voltaje3)));
+      setChart(chWc3, wrlabels, wr.view.map(d=>clampNumber(d.corriente3)));
+      setChart(chWp3, wrlabels, wr.view.map(d=>clampNumber(d.potencia3)));
 
-      setChart(chV3, labW, wview.map(d => clampNumber(d.voltaje3)));
-      setChart(chC3, labW, wview.map(d => clampNumber(d.corriente3)));
-      setChart(chP3, labW, wview.map(d => clampNumber(d.potencia3)));
+      // contador: muestra el tamaño de la ventana (más real para lo que ves)
+      document.getElementById("count").textContent = MAX_POINTS;
 
-    } catch(e){
+    }catch(e){
       console.log("refresh error:", e);
     }
   }
 
-  // ========= CSV (1 botón) =========
-  document.getElementById("btnCSV").addEventListener("click", () => {
-    // descarga directa desde servidor (CSV ya viene limpio y ordenado)
-    window.location.href = CSV_URL;
+  // ================= CSV (TODO junto) =================
+  function toCSV(rows){
+    // SIN device, sin microsegundos
+    const header = [
+      "id","fecha","hora",
+      "voltaje","corriente","potencia","radiometro","temperatura",
+      "voltaje1","voltaje2","voltaje3",
+      "corriente1","corriente2","corriente3",
+      "potencia1","potencia2","potencia3"
+    ];
+    const lines = [header.join(",")];
+
+    for(const r of rows){
+      lines.push([
+        r.id ?? "",
+        r.fecha ?? "",
+        (r.hora ?? "").split(".")[0],
+        r.voltaje ?? "",
+        r.corriente ?? "",
+        r.potencia ?? "",
+        r.radiometro ?? "",
+        r.temperatura ?? "",
+        r.voltaje1 ?? "",
+        r.voltaje2 ?? "",
+        r.voltaje3 ?? "",
+        r.corriente1 ?? "",
+        r.corriente2 ?? "",
+        r.corriente3 ?? "",
+        r.potencia1 ?? "",
+        r.potencia2 ?? "",
+        r.potencia3 ?? ""
+      ].join(","));
+    }
+    return lines.join("\n");
+  }
+
+  async function fetchAllForCSV(device){
+    const res = await fetch(`${API_BASE}?device=${encodeURIComponent(device)}&limit=5000`, {cache:"no-store"});
+    if(!res.ok) throw new Error("API error " + res.status);
+    const arr = await res.json();
+    // ordenar ASC por id
+    sortChronoAsc(arr);
+    return arr;
+  }
+
+  document.getElementById("btnCSV").addEventListener("click", async () => {
+    try{
+      const [s2, wroom] = await Promise.all([fetchAllForCSV("s2"), fetchAllForCSV("wroom")]);
+
+      // combinar en un solo CSV (todo revuelto NO: orden por id global)
+      const all = [...s2, ...wroom];
+      sortChronoAsc(all);
+
+      const csv = toCSV(all);
+      const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      const now = new Date();
+      a.download = `esp32_todo_${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(now.getDate())}_${pad2(now.getHours())}${pad2(now.getMinutes())}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }catch(e){
+      console.log("CSV error:", e);
+      alert("No pude generar el CSV. Revisa consola (F12).");
+    }
   });
 
-  // ========= START =========
+  // ================= START =================
   refresh();
   setInterval(refresh, REFRESH_MS);
 </script>
