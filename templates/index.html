@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Monitoreo ESP32 en la nube</title>
-
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
@@ -33,7 +32,6 @@
       color:var(--cyan);
       text-shadow:0 0 24px rgba(17,197,217,.25);
     }
-    .sub{color:var(--muted);margin:0 0 18px}
     .topbar{
       display:flex;
       flex-wrap:wrap;
@@ -98,7 +96,6 @@
 <body>
   <div class="wrap">
     <h1>Monitoreo ESP32 en la nube</h1>
-    <p class="sub">Registros: <span id="count">0</span></p>
 
     <div class="topbar">
       <button class="btn active" data-tab="tTemp">Temperatura (°C)</button>
@@ -107,12 +104,13 @@
       <button class="btn" data-tab="tW1">WROOM 1</button>
       <button class="btn" data-tab="tW2">WROOM 2</button>
       <button class="btn" data-tab="tW3">WROOM 3</button>
+
+      <button class="btn" id="btnClear">🧹 Limpiar gráficas</button>
       <button class="btn csv" id="btnCSV">📥 Descargar CSV</button>
     </div>
 
     <div class="cards">
 
-      <!-- TEMPERATURA -->
       <div id="tTemp" class="tab active">
         <div class="card">
           <h2>Temperatura (°C)</h2>
@@ -121,7 +119,6 @@
         </div>
       </div>
 
-      <!-- S2: SENSORES DE PANELES -->
       <div id="tSens" class="tab">
         <div class="grid2">
           <div class="card">
@@ -140,7 +137,6 @@
         </div>
       </div>
 
-      <!-- S2: RADIÓMETRO -->
       <div id="tRad" class="tab">
         <div class="card">
           <h2>Radiómetro</h2>
@@ -148,7 +144,6 @@
         </div>
       </div>
 
-      <!-- WROOM 1 -->
       <div id="tW1" class="tab">
         <div class="grid2">
           <div class="card"><h2>WROOM Voltaje 1</h2><canvas id="chWv1"></canvas></div>
@@ -158,7 +153,6 @@
         <div class="card"><h2>WROOM Potencia 1</h2><canvas id="chWp1"></canvas></div>
       </div>
 
-      <!-- WROOM 2 -->
       <div id="tW2" class="tab">
         <div class="grid2">
           <div class="card"><h2>WROOM Voltaje 2</h2><canvas id="chWv2"></canvas></div>
@@ -168,7 +162,6 @@
         <div class="card"><h2>WROOM Potencia 2</h2><canvas id="chWp2"></canvas></div>
       </div>
 
-      <!-- WROOM 3 -->
       <div id="tW3" class="tab">
         <div class="grid2">
           <div class="card"><h2>WROOM Voltaje 3</h2><canvas id="chWv3"></canvas></div>
@@ -182,25 +175,26 @@
   </div>
 
 <script>
-  // ================= CONFIG =================
   const MAX_POINTS = 120;
   const REFRESH_MS = 3000;
 
-  // ================= HELPERS =================
-  function pad2(n){ return String(n).padStart(2,"0"); }
+  // ✅ “cortes” para que después de limpiar solo entren nuevos
+  let sinceIdS2 = null;
+  let sinceIdW  = null;
 
+  // buffers “vivos”
+  let bufS2 = [];
+  let bufW  = [];
+
+  function pad2(n){ return String(n).padStart(2,"0"); }
   function hourLabel(row){
-    // "HH:MM:SS.ssssss" -> "HH:MM:SS"
     const h = (row.hora || "").split(".")[0];
     return h || "--:--:--";
   }
-
   function parseRowTime(row){
-    // Para ordenar: fecha + hora sin micros
     const h = (row.hora || "00:00:00").split(".")[0];
     return new Date(`${row.fecha}T${h}`);
   }
-
   function pickNumber(obj, keys){
     for (const k of keys){
       const v = obj?.[k];
@@ -211,32 +205,29 @@
     return null;
   }
 
-  async function fetchDevice(device, limit=300){
-    const res = await fetch(`/api/data?device=${encodeURIComponent(device)}&limit=${limit}`, {cache:"no-store"});
+  async function fetchDevice(device, limit=300, since_id=null){
+    const qs = new URLSearchParams({
+      device,
+      limit: String(limit),
+    });
+    if (since_id !== null) qs.set("since_id", String(since_id));
+
+    const res = await fetch(`/api/data?${qs.toString()}`, {cache:"no-store"});
     if(!res.ok) throw new Error("API error "+res.status);
     const arr = await res.json();
-    // API suele venir DESC (nuevo->viejo). Lo ponemos ASC (viejo->nuevo)
+
+    // si viene asc (por since_id) ya está en orden, si no, la ordenamos
     arr.sort((a,b) => parseRowTime(a) - parseRowTime(b));
     return arr;
   }
 
-  // ================= CHART FACTORY =================
   function makeLineChart(canvasId, label, suggestedMax){
     const ctx = document.getElementById(canvasId).getContext("2d");
     return new Chart(ctx, {
       type: "line",
-      data: {
-        labels: [],
-        datasets: [{
-          label,
-          data: [],
-          borderWidth: 2,
-          pointRadius: 0,
-          tension: 0.25,
-          fill: false,
-          spanGaps: true
-        }]
-      },
+      data: { labels: [], datasets: [{
+        label, data: [], borderWidth: 2, pointRadius: 0, tension: 0.25, fill: false, spanGaps: true
+      }]},
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -255,14 +246,14 @@
     });
   }
 
-  // S2
+  // charts S2
   const chTemp = makeLineChart("chTemp", "Temperatura (°C)", 120);
   const chVolt = makeLineChart("chVolt", "Voltaje (V)", 30);
   const chCorr = makeLineChart("chCorr", "Corriente (A)", 10);
   const chPot  = makeLineChart("chPot",  "Potencia (W)", 200);
   const chRad  = makeLineChart("chRad",  "Radiómetro", 4096);
 
-  // WROOM
+  // charts WROOM
   const chWv1 = makeLineChart("chWv1", "Voltaje1", 30);
   const chWc1 = makeLineChart("chWc1", "Corriente1", 10);
   const chWp1 = makeLineChart("chWp1", "Potencia1", 200);
@@ -290,10 +281,9 @@
     chart.update("none");
   }
 
-  // ================= TABS (FIX: RESIZE) =================
+  // tabs
   const tabBtns = document.querySelectorAll(".btn[data-tab]");
   const tabs = document.querySelectorAll(".tab");
-
   function resizeTab(tabId){
     const list = chartsByTab[tabId] || [];
     for(const ch of list){
@@ -301,66 +291,111 @@
       ch.update("none");
     }
   }
-
   tabBtns.forEach(btn => {
     btn.addEventListener("click", () => {
       tabBtns.forEach(b => b.classList.remove("active"));
       tabs.forEach(t => t.classList.remove("active"));
-
       btn.classList.add("active");
       const tabId = btn.dataset.tab;
       document.getElementById(tabId).classList.add("active");
-
-      // ✅ CLAVE: cuando se muestra el tab, re-calcula tamaño y redibuja
       setTimeout(() => resizeTab(tabId), 0);
     });
   });
-
   window.addEventListener("resize", () => {
     const active = document.querySelector(".tab.active")?.id;
     if(active) resizeTab(active);
   });
 
-  // ================= REFRESH =================
-  async function refresh(){
+  // ✅ LIMPIAR: marca el “corte” y vacía buffers y charts
+  function clearChart(chart){
+    chart.data.labels = [];
+    chart.data.datasets.forEach(ds => ds.data = []);
+    chart.update();
+  }
+
+  document.getElementById("btnClear").addEventListener("click", async () => {
     try{
-      const [s2All, wAll] = await Promise.all([
-        fetchDevice("s2", 600),
-        fetchDevice("wroom", 600),
+      // toma el último id actual de cada device para usarlo como corte
+      const [s2Latest, wLatest] = await Promise.all([
+        fetchDevice("s2", 1, null),
+        fetchDevice("wroom", 1, null),
       ]);
 
-      // contador global
-      document.getElementById("count").textContent = (s2All.length + wAll.length);
+      // API viene desc si no usamos since_id, pero igual ordenamos -> el último es el más nuevo
+      const lastS2 = s2Latest.length ? s2Latest[s2Latest.length - 1] : null;
+      const lastW  = wLatest.length  ? wLatest[wLatest.length  - 1] : null;
 
-      // Ventana visible
-      const s2 = s2All.slice(-MAX_POINTS);
-      const w  = wAll.slice(-MAX_POINTS);
+      sinceIdS2 = lastS2 ? lastS2.id : sinceIdS2;
+      sinceIdW  = lastW  ? lastW.id  : sinceIdW;
 
-      // Labels
-      const labelsS2 = s2.map(hourLabel);
-      const labelsW  = w.map(hourLabel);
+      // vacía buffers
+      bufS2 = [];
+      bufW  = [];
 
-      // S2
-      setChart(chTemp, labelsS2, s2.map(d => pickNumber(d, ["temperatura"])));
-      setChart(chVolt, labelsS2, s2.map(d => pickNumber(d, ["voltaje"])));
-      setChart(chCorr, labelsS2, s2.map(d => pickNumber(d, ["corriente"])));
-      setChart(chPot,  labelsS2, s2.map(d => pickNumber(d, ["potencia"])));
-      setChart(chRad,  labelsS2, s2.map(d => pickNumber(d, ["radiometro"])));
+      // limpia charts
+      [chTemp,chVolt,chCorr,chPot,chRad,chWv1,chWc1,chWp1,chWv2,chWc2,chWp2,chWv3,chWc3,chWp3].forEach(clearChart);
 
-      // WROOM
-      setChart(chWv1, labelsW, w.map(d => pickNumber(d, ["voltaje1"])));
-      setChart(chWc1, labelsW, w.map(d => pickNumber(d, ["corriente1"])));
-      setChart(chWp1, labelsW, w.map(d => pickNumber(d, ["potencia1"])));
+      console.log("Limpiadas. Desde ahora solo se mostrarán datos nuevos. sinceIdS2=", sinceIdS2, "sinceIdW=", sinceIdW);
+    }catch(e){
+      console.log("Error al limpiar:", e);
+    }
+  });
 
-      setChart(chWv2, labelsW, w.map(d => pickNumber(d, ["voltaje2"])));
-      setChart(chWc2, labelsW, w.map(d => pickNumber(d, ["corriente2"])));
-      setChart(chWp2, labelsW, w.map(d => pickNumber(d, ["potencia2"])));
+  // refresh: si sinceId existe, trae SOLO nuevos y los agrega al buffer
+  async function refresh(){
+    try{
+      // primera carga: llenamos buffer con historial
+      if (sinceIdS2 === null || sinceIdW === null){
+        const [s2All, wAll] = await Promise.all([
+          fetchDevice("s2", 600, null),
+          fetchDevice("wroom", 600, null),
+        ]);
 
-      setChart(chWv3, labelsW, w.map(d => pickNumber(d, ["voltaje3"])));
-      setChart(chWc3, labelsW, w.map(d => pickNumber(d, ["corriente3"])));
-      setChart(chWp3, labelsW, w.map(d => pickNumber(d, ["potencia3"])));
+        bufS2 = s2All.slice(-MAX_POINTS);
+        bufW  = wAll.slice(-MAX_POINTS);
 
-      // ✅ Redibuja el tab activo (evita que se quede “en blanco”)
+        sinceIdS2 = bufS2.length ? bufS2[bufS2.length - 1].id : sinceIdS2;
+        sinceIdW  = bufW.length  ? bufW[bufW.length  - 1].id : sinceIdW;
+
+      } else {
+        // después: solo nuevos
+        const [s2New, wNew] = await Promise.all([
+          fetchDevice("s2", 300, sinceIdS2),
+          fetchDevice("wroom", 300, sinceIdW),
+        ]);
+
+        if (s2New.length){
+          sinceIdS2 = s2New[s2New.length - 1].id;
+          bufS2 = bufS2.concat(s2New).slice(-MAX_POINTS);
+        }
+        if (wNew.length){
+          sinceIdW = wNew[wNew.length - 1].id;
+          bufW = bufW.concat(wNew).slice(-MAX_POINTS);
+        }
+      }
+
+      // pinta S2
+      const labelsS2 = bufS2.map(hourLabel);
+      setChart(chTemp, labelsS2, bufS2.map(d => pickNumber(d, ["temperatura"])));
+      setChart(chVolt, labelsS2, bufS2.map(d => pickNumber(d, ["voltaje"])));
+      setChart(chCorr, labelsS2, bufS2.map(d => pickNumber(d, ["corriente"])));
+      setChart(chPot,  labelsS2, bufS2.map(d => pickNumber(d, ["potencia"])));
+      setChart(chRad,  labelsS2, bufS2.map(d => pickNumber(d, ["radiometro"])));
+
+      // pinta WROOM
+      const labelsW = bufW.map(hourLabel);
+      setChart(chWv1, labelsW, bufW.map(d => pickNumber(d, ["voltaje1"])));
+      setChart(chWc1, labelsW, bufW.map(d => pickNumber(d, ["corriente1"])));
+      setChart(chWp1, labelsW, bufW.map(d => pickNumber(d, ["potencia1"])));
+
+      setChart(chWv2, labelsW, bufW.map(d => pickNumber(d, ["voltaje2"])));
+      setChart(chWc2, labelsW, bufW.map(d => pickNumber(d, ["corriente2"])));
+      setChart(chWp2, labelsW, bufW.map(d => pickNumber(d, ["potencia2"])));
+
+      setChart(chWv3, labelsW, bufW.map(d => pickNumber(d, ["voltaje3"])));
+      setChart(chWc3, labelsW, bufW.map(d => pickNumber(d, ["corriente3"])));
+      setChart(chWp3, labelsW, bufW.map(d => pickNumber(d, ["potencia3"])));
+
       const active = document.querySelector(".tab.active")?.id;
       if(active) resizeTab(active);
 
@@ -369,9 +404,8 @@
     }
   }
 
-  // ================= CSV (un solo botón, sin device) =================
+  // CSV igual que antes
   function toCSV(rows){
-    // Columnas como tu ejemplo (sin device) y sin microsegundos
     const header = [
       "id","fecha","hora",
       "voltaje","corriente","potencia","radiometro","temperatura",
@@ -380,7 +414,6 @@
       "potencia1","potencia2","potencia3"
     ];
     const lines = [header.join(",")];
-
     for(const r of rows){
       lines.push([
         r.id ?? "",
@@ -406,10 +439,8 @@
   }
 
   document.getElementById("btnCSV").addEventListener("click", async () => {
-    const [s2, w] = await Promise.all([fetchDevice("s2", 5000), fetchDevice("wroom", 5000)]);
+    const [s2, w] = await Promise.all([fetchDevice("s2", 5000, null), fetchDevice("wroom", 5000, null)]);
     const all = [...s2, ...w];
-
-    // orden cronológico
     all.sort((a,b) => parseRowTime(a) - parseRowTime(b));
 
     const csv = toCSV(all);
@@ -426,7 +457,6 @@
     URL.revokeObjectURL(url);
   });
 
-  // ================= START =================
   refresh();
   setInterval(refresh, REFRESH_MS);
 </script>
