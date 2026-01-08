@@ -1,282 +1,465 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Monitoreo ESP32 en la nube</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Monitoreo ESP32 en la nube</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<style>
-:root{
-  --bg:#ffffff;
-  --card:#e1e5ea;
-  --cyan:#0b6cff;
-  --txt:#1a1a1a;
-  --muted:#5f6b76;
-  --btn:#e6e9ed;
-  --btnActive:#0b6cff;
+  <style>
+    :root{
+  --bg:#ffffff;          /* fondo blanco */
+  --card:#e1e5ea;   /* gris más oscuro pero elegante */
+  --cyan:#0b6cff;        /* color principal (azul) */
+  --txt:#1a1a1a;         /* texto oscuro */
+  --muted:#5f6b76;       /* texto secundario */
+  --btn:#e6e9ed;         /* botones */
+  --btnActive:#0b6cff;   /* botón activo */
 }
 
-*{box-sizing:border-box}
-
-body{
-  margin:0;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
-  background: var(--bg);
-  color:var(--txt);
-  text-align:center;
-}
-
-.wrap{
-  max-width:1200px;
-  margin:0 auto;
-  padding:24px 14px 40px;
-}
-
-h1{
-  margin:10px 0 6px;
-  font-weight:800;
-  color:var(--cyan);
-}
-
-.topbar{
-  display:flex;
-  flex-wrap:wrap;
-  justify-content:center;
-  gap:10px;
-  margin:16px 0;
-}
-
-.btn{
-  border:none;
-  padding:10px 16px;
-  border-radius:12px;
-  background:var(--btn);
-  color:var(--txt);
-  cursor:pointer;
-  font-weight:700;
-}
-
-.btn.active{
-  background:var(--btnActive);
-  color:#fff;
-}
-
-.cards{
-  margin-top:10px;
-  background:#f7f9fb;
-  border-radius:22px;
-  padding:18px;
-}
-
-.tab{display:none}
-.tab.active{display:block}
-
-.grid2{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:14px;
-}
-
-@media (max-width:900px){
-  .grid2{grid-template-columns:1fr}
-}
-
-.card{
-  background:var(--card);
-  border-radius:22px;
-  padding:16px;
-}
-
-.card h2{
-  margin:6px 0 10px;
-  font-size:18px;
-}
-
-canvas{
-  width:100% !important;
-  height:320px !important;
-  background:#dde2e8;
-  border-radius:12px;
-}
-</style>
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background: var(--bg);
+      color:var(--txt);
+      text-align:center;
+    }
+    .wrap{max-width:1200px;margin:0 auto;padding:24px 14px 40px}
+    h1{
+      margin:10px 0 6px;
+      font-weight:800;
+      letter-spacing:.5px;
+      color:var(--cyan);
+      text-shadow:0 0 24px rgba(17,197,217,.25);
+    }
+    .topbar{
+      display:flex;
+      flex-wrap:wrap;
+      justify-content:center;
+      gap:10px;
+      margin:14px 0 18px;
+    }
+    .btn{
+      border:none;
+      padding:10px 16px;
+      border-radius:12px;
+      background:var(--btn);
+      color:var(--txt);
+      cursor:pointer;
+      font-weight:700;
+      transition:transform .08s ease, background .15s ease;
+    }
+    .btn:active{transform:scale(.98)}
+    .btn.active{background:var(--btnActive); color:#001014}
+    .btn.csv{
+      background:linear-gradient(135deg, rgba(17,197,217,.95), rgba(17,197,217,.75));
+      color:#001014;
+    }
+    .cards{
+      margin-top:10px;
+      background:linear-gradient(180deg, rgba(255,255,255,.03), transparent);
+      border:1px solid rgba(255,255,255,.06);
+      border-radius:22px;
+      padding:18px;
+      box-shadow:0 14px 40px rgba(0,0,0,.45);
+    }
+    .tab{display:none}
+    .tab.active{display:block}
+    .grid2{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:14px;
+    }
+    @media (max-width:900px){
+      .grid2{grid-template-columns:1fr}
+    }
+    .card{
+      background: radial-gradient(900px 320px at 50% 0px, rgba(255,255,255,.06), transparent 65%), var(--card);
+      border:1px solid rgba(255,255,255,.06);
+      border-radius:22px;
+      padding:16px 14px 10px;
+    }
+    .card h2{
+      margin:8px 0 8px;
+      font-size:20px;
+      font-weight:800;
+    }
+    canvas{width:100% !important; height:320px !important;}
+    .hint{
+      margin-top:10px;
+      color:var(--muted);
+      font-size:13px;
+    }
+  </style>
 </head>
 
 <body>
-<div class="wrap">
-<h1>Monitoreo ESP32 en la nube</h1>
+  <div class="wrap">
+    <h1>Monitoreo ESP32 en la nube</h1>
 
-<div class="topbar">
-  <button class="btn active" data-tab="tTemp">Temperatura</button>
-  <button class="btn" data-tab="tSens">Sensores de paneles</button>
-  <button class="btn" data-tab="tRad">Radiómetro</button>
-  <button class="btn" data-tab="tW1">Sensores 1</button>
-  <button class="btn" data-tab="tW2">Sensores 2</button>
-  <button class="btn" data-tab="tW3">Sensores 3</button>
-</div>
+    <div class="topbar">
+      <button class="btn active" data-tab="tTemp">Temperatura (°C)</button>
+      <button class="btn" data-tab="tSens">Sensores de paneles</button>
+      <button class="btn" data-tab="tRad">Radiómetro</button>
+      <button class="btn" data-tab="tW1">Sensores 1</button>
+      <button class="btn" data-tab="tW2">Sensores 2</button>
+      <button class="btn" data-tab="tW3">Sensores 3</button>
 
-<div class="cards">
+      <button class="btn" id="btnClear">Limpiar gráficas</button>
+      <button class="btn csv" id="btnCSV">Descargar CSV</button>
+    </div>
 
-<!-- TEMPERATURA -->
-<div id="tTemp" class="tab active">
-  <div class="card">
-    <h2>Temperatura (°C)</h2>
-    <canvas id="chTemp"></canvas>
+    <div class="cards">
+
+      <div id="tTemp" class="tab active">
+        <div class="card">
+          <h2>Temperatura (°C)</h2>
+          <canvas id="chTemp"></canvas>
+          <div class="hint">.</div>
+        </div>
+      </div>
+
+      <div id="tSens" class="tab">
+        <div class="grid2">
+          <div class="card">
+            <h2>Voltaje (V)</h2>
+            <canvas id="chVolt"></canvas>
+          </div>
+          <div class="card">
+            <h2>Corriente (A)</h2>
+            <canvas id="chCorr"></canvas>
+          </div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="card">
+          <h2>Potencia (W)</h2>
+          <canvas id="chPot"></canvas>
+        </div>
+      </div>
+
+      <div id="tRad" class="tab">
+        <div class="card">
+          <h2>Radiómetro</h2>
+          <canvas id="chRad"></canvas>
+        </div>
+      </div>
+
+      <div id="tW1" class="tab">
+        <div class="grid2">
+          <div class="card"><h2>WROOM Voltaje 1</h2><canvas id="chWv1"></canvas></div>
+          <div class="card"><h2>WROOM Corriente 1</h2><canvas id="chWc1"></canvas></div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="card"><h2>WROOM Potencia 1</h2><canvas id="chWp1"></canvas></div>
+      </div>
+
+      <div id="tW2" class="tab">
+        <div class="grid2">
+          <div class="card"><h2>WROOM Voltaje 2</h2><canvas id="chWv2"></canvas></div>
+          <div class="card"><h2>WROOM Corriente 2</h2><canvas id="chWc2"></canvas></div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="card"><h2>WROOM Potencia 2</h2><canvas id="chWp2"></canvas></div>
+      </div>
+
+      <div id="tW3" class="tab">
+        <div class="grid2">
+          <div class="card"><h2>WROOM Voltaje 3</h2><canvas id="chWv3"></canvas></div>
+          <div class="card"><h2>WROOM Corriente 3</h2><canvas id="chWc3"></canvas></div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="card"><h2>WROOM Potencia 3</h2><canvas id="chWp3"></canvas></div>
+      </div>
+
+    </div>
   </div>
-</div>
-
-<!-- S2 -->
-<div id="tSens" class="tab">
-  <div class="grid2">
-    <div class="card"><h2>Voltaje</h2><canvas id="chVolt"></canvas></div>
-    <div class="card"><h2>Corriente</h2><canvas id="chCorr"></canvas></div>
-  </div>
-  <div style="height:14px"></div>
-  <div class="card"><h2>Potencia</h2><canvas id="chPot"></canvas></div>
-</div>
-
-<!-- RADIÓMETRO -->
-<div id="tRad" class="tab">
-  <div class="card">
-    <h2>Radiómetro</h2>
-    <canvas id="chRad"></canvas>
-  </div>
-</div>
-
-<!-- WROOM 1 -->
-<div id="tW1" class="tab">
-  <div class="grid2">
-    <div class="card"><h2>Voltaje 1</h2><canvas id="chWv1"></canvas></div>
-    <div class="card"><h2>Corriente 1</h2><canvas id="chWc1"></canvas></div>
-  </div>
-  <div style="height:14px"></div>
-  <div class="card"><h2>Potencia 1</h2><canvas id="chWp1"></canvas></div>
-</div>
-
-<!-- WROOM 2 -->
-<div id="tW2" class="tab">
-  <div class="grid2">
-    <div class="card"><h2>Voltaje 2</h2><canvas id="chWv2"></canvas></div>
-    <div class="card"><h2>Corriente 2</h2><canvas id="chWc2"></canvas></div>
-  </div>
-  <div style="height:14px"></div>
-  <div class="card"><h2>Potencia 2</h2><canvas id="chWp2"></canvas></div>
-</div>
-
-<!-- WROOM 3 -->
-<div id="tW3" class="tab">
-  <div class="grid2">
-    <div class="card"><h2>Voltaje 3</h2><canvas id="chWv3"></canvas></div>
-    <div class="card"><h2>Corriente 3</h2><canvas id="chWc3"></canvas></div>
-  </div>
-  <div style="height:14px"></div>
-  <div class="card"><h2>Potencia 3</h2><canvas id="chWp3"></canvas></div>
-</div>
-
-</div>
-</div>
 
 <script>
-const MAX = 120;
-const REFRESH = 3000;
+  const MAX_POINTS = 120;
+  const REFRESH_MS = 3000;
 
-function makeChart(id,label,maxY){
-  return new Chart(document.getElementById(id),{
-    type:"line",
-    data:{labels:[],datasets:[{
-      label,
-      data:[],
-      borderColor:"#0b6cff",
-      borderWidth:2.5,
-      pointRadius:0,
-      tension:.25
-    }]},
-    options:{
-      animation:false,
-      scales:{
-        x:{grid:{display:false}},
-        y:{beginAtZero:true,suggestedMax:maxY,grid:{color:"rgba(0,0,0,.08)"}}
+  // ✅ “cortes” para que después de limpiar solo entren nuevos
+  let sinceIdS2 = null;
+  let sinceIdW  = null;
+
+  // buffers “vivos”
+  let bufS2 = [];
+  let bufW  = [];
+
+  function pad2(n){ return String(n).padStart(2,"0"); }
+  function hourLabel(row){
+    const h = (row.hora || "").split(".")[0];
+    return h || "--:--:--";
+  }
+  function parseRowTime(row){
+    const h = (row.hora || "00:00:00").split(".")[0];
+    return new Date(`${row.fecha}T${h}`);
+  }
+  function pickNumber(obj, keys){
+    for (const k of keys){
+      const v = obj?.[k];
+      if (v === null || v === undefined) continue;
+      const n = Number(v);
+      if (Number.isFinite(n)) return n;
+    }
+    return null;
+  }
+
+  async function fetchDevice(device, limit=300, since_id=null){
+    const qs = new URLSearchParams({
+      device,
+      limit: String(limit),
+    });
+    if (since_id !== null) qs.set("since_id", String(since_id));
+
+    const res = await fetch(`/api/data?${qs.toString()}`, {cache:"no-store"});
+    if(!res.ok) throw new Error("API error "+res.status);
+    const arr = await res.json();
+
+    // si viene asc (por since_id) ya está en orden, si no, la ordenamos
+    arr.sort((a,b) => parseRowTime(a) - parseRowTime(b));
+    return arr;
+  }
+
+  function makeLineChart(canvasId, label, suggestedMax){
+    const ctx = document.getElementById(canvasId).getContext("2d");
+    return new Chart(ctx, {
+      type: "line",
+      data: { labels: [], datasets: [{
+        label, data: [], borderWidth: 2, pointRadius: 0, tension: 0.25, fill: false, spanGaps: true
+      }]},
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 200 },
+        interaction: { mode: "nearest", intersect: false },
+        plugins: {
+          legend: { display: true },
+          tooltip: { enabled: true, mode: "nearest", intersect: false },
+          decimation: { enabled: true, algorithm: "min-max" }
+        },
+        scales: {
+          x: { ticks: { maxRotation: 0, autoSkip: true }, grid: { display: false } },
+          y: { beginAtZero: true, suggestedMax, grid: { color: "rgba(255,255,255,.06)" } }
+        }
       }
+    });
+  }
+
+  // charts S2
+  const chTemp = makeLineChart("chTemp", "Temperatura (°C)", 120);
+  const chVolt = makeLineChart("chVolt", "Voltaje (V)", 30);
+  const chCorr = makeLineChart("chCorr", "Corriente (A)", 10);
+  const chPot  = makeLineChart("chPot",  "Potencia (W)", 200);
+  const chRad  = makeLineChart("chRad",  "Radiómetro", 4096);
+
+  // charts WROOM
+  const chWv1 = makeLineChart("chWv1", "Voltaje1", 30);
+  const chWc1 = makeLineChart("chWc1", "Corriente1", 10);
+  const chWp1 = makeLineChart("chWp1", "Potencia1", 200);
+
+  const chWv2 = makeLineChart("chWv2", "Voltaje2", 30);
+  const chWc2 = makeLineChart("chWc2", "Corriente2", 10);
+  const chWp2 = makeLineChart("chWp2", "Potencia2", 200);
+
+  const chWv3 = makeLineChart("chWv3", "Voltaje3", 30);
+  const chWc3 = makeLineChart("chWc3", "Corriente3", 10);
+  const chWp3 = makeLineChart("chWp3", "Potencia3", 200);
+
+  const chartsByTab = {
+    tTemp: [chTemp],
+    tSens: [chVolt, chCorr, chPot],
+    tRad:  [chRad],
+    tW1:   [chWv1, chWc1, chWp1],
+    tW2:   [chWv2, chWc2, chWp2],
+    tW3:   [chWv3, chWc3, chWp3],
+  };
+
+  function setChart(chart, labels, data){
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = data;
+    chart.update("none");
+  }
+
+  // tabs
+  const tabBtns = document.querySelectorAll(".btn[data-tab]");
+  const tabs = document.querySelectorAll(".tab");
+  function resizeTab(tabId){
+    const list = chartsByTab[tabId] || [];
+    for(const ch of list){
+      ch.resize();
+      ch.update("none");
+    }
+  }
+  tabBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      tabBtns.forEach(b => b.classList.remove("active"));
+      tabs.forEach(t => t.classList.remove("active"));
+      btn.classList.add("active");
+      const tabId = btn.dataset.tab;
+      document.getElementById(tabId).classList.add("active");
+      setTimeout(() => resizeTab(tabId), 0);
+    });
+  });
+  window.addEventListener("resize", () => {
+    const active = document.querySelector(".tab.active")?.id;
+    if(active) resizeTab(active);
+  });
+
+  // ✅ LIMPIAR: marca el “corte” y vacía buffers y charts
+  function clearChart(chart){
+    chart.data.labels = [];
+    chart.data.datasets.forEach(ds => ds.data = []);
+    chart.update();
+  }
+
+  document.getElementById("btnClear").addEventListener("click", async () => {
+    try{
+      // toma el último id actual de cada device para usarlo como corte
+      const [s2Latest, wLatest] = await Promise.all([
+        fetchDevice("s2", 1, null),
+        fetchDevice("wroom", 1, null),
+      ]);
+
+      // API viene desc si no usamos since_id, pero igual ordenamos -> el último es el más nuevo
+      const lastS2 = s2Latest.length ? s2Latest[s2Latest.length - 1] : null;
+      const lastW  = wLatest.length  ? wLatest[wLatest.length  - 1] : null;
+
+      sinceIdS2 = lastS2 ? lastS2.id : sinceIdS2;
+      sinceIdW  = lastW  ? lastW.id  : sinceIdW;
+
+      // vacía buffers
+      bufS2 = [];
+      bufW  = [];
+
+      // limpia charts
+      [chTemp,chVolt,chCorr,chPot,chRad,chWv1,chWc1,chWp1,chWv2,chWc2,chWp2,chWv3,chWc3,chWp3].forEach(clearChart);
+
+      console.log("Limpiadas. Desde ahora solo se mostrarán datos nuevos. sinceIdS2=", sinceIdS2, "sinceIdW=", sinceIdW);
+    }catch(e){
+      console.log("Error al limpiar:", e);
     }
   });
-}
 
-const chTemp=makeChart("chTemp","Temp",120);
-const chVolt=makeChart("chVolt","Voltaje",30);
-const chCorr=makeChart("chCorr","Corriente",10);
-const chPot =makeChart("chPot","Potencia",200);
-const chRad =makeChart("chRad","Rad",4096);
+  // refresh: si sinceId existe, trae SOLO nuevos y los agrega al buffer
+  async function refresh(){
+    try{
+      // primera carga: llenamos buffer con historial
+      if (sinceIdS2 === null || sinceIdW === null){
+        const [s2All, wAll] = await Promise.all([
+          fetchDevice("s2", 600, null),
+          fetchDevice("wroom", 600, null),
+        ]);
 
-const chWv1=makeChart("chWv1","V1",30);
-const chWc1=makeChart("chWc1","C1",10);
-const chWp1=makeChart("chWp1","P1",200);
+        bufS2 = s2All.slice(-MAX_POINTS);
+        bufW  = wAll.slice(-MAX_POINTS);
 
-const chWv2=makeChart("chWv2","V2",30);
-const chWc2=makeChart("chWc2","C2",10);
-const chWp2=makeChart("chWp2","P2",200);
+        sinceIdS2 = bufS2.length ? bufS2[bufS2.length - 1].id : sinceIdS2;
+        sinceIdW  = bufW.length  ? bufW[bufW.length  - 1].id : sinceIdW;
 
-const chWv3=makeChart("chWv3","V3",30);
-const chWc3=makeChart("chWc3","C3",10);
-const chWp3=makeChart("chWp3","P3",200);
+      } else {
+        // después: solo nuevos
+        const [s2New, wNew] = await Promise.all([
+          fetchDevice("s2", 300, sinceIdS2),
+          fetchDevice("wroom", 300, sinceIdW),
+        ]);
 
-async function refresh(){
-  const s2 = await fetch("/api/data?device=s2").then(r=>r.json());
-  const w  = await fetch("/api/data?device=wroom").then(r=>r.json());
+        if (s2New.length){
+          sinceIdS2 = s2New[s2New.length - 1].id;
+          bufS2 = bufS2.concat(s2New).slice(-MAX_POINTS);
+        }
+        if (wNew.length){
+          sinceIdW = wNew[wNew.length - 1].id;
+          bufW = bufW.concat(wNew).slice(-MAX_POINTS);
+        }
+      }
 
-  s2.sort((a,b)=>a.id-b.id);
-  w.sort((a,b)=>a.id-b.id);
+      // pinta S2
+      const labelsS2 = bufS2.map(hourLabel);
+      setChart(chTemp, labelsS2, bufS2.map(d => pickNumber(d, ["temperatura"])));
+      setChart(chVolt, labelsS2, bufS2.map(d => pickNumber(d, ["voltaje"])));
+      setChart(chCorr, labelsS2, bufS2.map(d => pickNumber(d, ["corriente"])));
+      setChart(chPot,  labelsS2, bufS2.map(d => pickNumber(d, ["potencia"])));
+      setChart(chRad,  labelsS2, bufS2.map(d => pickNumber(d, ["radiometro"])));
 
-  const s = s2.slice(-MAX);
-  const wv= w.slice(-MAX);
+      // pinta WROOM
+      const labelsW = bufW.map(hourLabel);
+      setChart(chWv1, labelsW, bufW.map(d => pickNumber(d, ["voltaje1"])));
+      setChart(chWc1, labelsW, bufW.map(d => pickNumber(d, ["corriente1"])));
+      setChart(chWp1, labelsW, bufW.map(d => pickNumber(d, ["potencia1"])));
 
-  const labelsS=s.map(d=>d.hora);
-  const labelsW=wv.map(d=>d.hora);
+      setChart(chWv2, labelsW, bufW.map(d => pickNumber(d, ["voltaje2"])));
+      setChart(chWc2, labelsW, bufW.map(d => pickNumber(d, ["corriente2"])));
+      setChart(chWp2, labelsW, bufW.map(d => pickNumber(d, ["potencia2"])));
 
-  chTemp.data.labels=labelsS;
-  chTemp.data.datasets[0].data=s.map(d=>d.temperatura);
-  chTemp.update();
+      setChart(chWv3, labelsW, bufW.map(d => pickNumber(d, ["voltaje3"])));
+      setChart(chWc3, labelsW, bufW.map(d => pickNumber(d, ["corriente3"])));
+      setChart(chWp3, labelsW, bufW.map(d => pickNumber(d, ["potencia3"])));
 
-  chVolt.data.labels=labelsS;
-  chVolt.data.datasets[0].data=s.map(d=>d.voltaje);
-  chVolt.update();
+      const active = document.querySelector(".tab.active")?.id;
+      if(active) resizeTab(active);
 
-  chCorr.data.labels=labelsS;
-  chCorr.data.datasets[0].data=s.map(d=>d.corriente);
-  chCorr.update();
-
-  chPot.data.labels=labelsS;
-  chPot.data.datasets[0].data=s.map(d=>d.potencia);
-  chPot.update();
-
-  chRad.data.labels=labelsS;
-  chRad.data.datasets[0].data=s.map(d=>d.radiometro);
-  chRad.update();
-
-  chWv1.data.labels=labelsW; chWv1.data.datasets[0].data=wv.map(d=>d.voltaje1); chWv1.update();
-  chWc1.data.labels=labelsW; chWc1.data.datasets[0].data=wv.map(d=>d.corriente1); chWc1.update();
-  chWp1.data.labels=labelsW; chWp1.data.datasets[0].data=wv.map(d=>d.potencia1); chWp1.update();
-
-  chWv2.data.labels=labelsW; chWv2.data.datasets[0].data=wv.map(d=>d.voltaje2); chWv2.update();
-  chWc2.data.labels=labelsW; chWc2.data.datasets[0].data=wv.map(d=>d.corriente2); chWc2.update();
-  chWp2.data.labels=labelsW; chWp2.data.datasets[0].data=wv.map(d=>d.potencia2); chWp2.update();
-
-  chWv3.data.labels=labelsW; chWv3.data.datasets[0].data=wv.map(d=>d.voltaje3); chWv3.update();
-  chWc3.data.labels=labelsW; chWc3.data.datasets[0].data=wv.map(d=>d.corriente3); chWc3.update();
-  chWp3.data.labels=labelsW; chWp3.data.datasets[0].data=wv.map(d=>d.potencia3); chWp3.update();
-}
-
-document.querySelectorAll(".btn[data-tab]").forEach(b=>{
-  b.onclick=()=>{
-    document.querySelectorAll(".btn").forEach(x=>x.classList.remove("active"));
-    document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-    b.classList.add("active");
-    document.getElementById(b.dataset.tab).classList.add("active");
+    }catch(e){
+      console.log("refresh error:", e);
+    }
   }
-});
 
-refresh();
-setInterval(refresh,REFRESH);
+  // CSV igual que antes
+  function toCSV(rows){
+    const header = [
+      "id","fecha","hora",
+      "voltaje","corriente","potencia","radiometro","temperatura",
+      "voltaje1","voltaje2","voltaje3",
+      "corriente1","corriente2","corriente3",
+      "potencia1","potencia2","potencia3"
+    ];
+    const lines = [header.join(",")];
+    for(const r of rows){
+      lines.push([
+        r.id ?? "",
+        r.fecha ?? "",
+        (r.hora ?? "").split(".")[0],
+        r.voltaje ?? "",
+        r.corriente ?? "",
+        r.potencia ?? "",
+        r.radiometro ?? "",
+        r.temperatura ?? "",
+        r.voltaje1 ?? "",
+        r.voltaje2 ?? "",
+        r.voltaje3 ?? "",
+        r.corriente1 ?? "",
+        r.corriente2 ?? "",
+        r.corriente3 ?? "",
+        r.potencia1 ?? "",
+        r.potencia2 ?? "",
+        r.potencia3 ?? ""
+      ].join(","));
+    }
+    return lines.join("\n");
+  }
+
+  document.getElementById("btnCSV").addEventListener("click", async () => {
+    const [s2, w] = await Promise.all([fetchDevice("s2", 5000, null), fetchDevice("wroom", 5000, null)]);
+    const all = [...s2, ...w];
+    all.sort((a,b) => parseRowTime(a) - parseRowTime(b));
+
+    const csv = toCSV(all);
+    const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    const now = new Date();
+    a.download = `esp32_${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(now.getDate())}_${pad2(now.getHours())}${pad2(now.getMinutes())}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  refresh();
+  setInterval(refresh, REFRESH_MS);
 </script>
 </body>
 </html>
