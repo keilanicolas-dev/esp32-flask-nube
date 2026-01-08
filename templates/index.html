@@ -8,19 +8,20 @@
 
   <style>
     :root{
-      --bg:#0e0f10;
-      --card:#1a1c1f;
-      --cyan:#11c5d9;
-      --txt:#e9eef2;
-      --muted:#aab6be;
-      --btn:#22262a;
-      --btnActive:#0fb9cc;
-    }
+  --bg:#ffffff;          /* fondo blanco */
+  --card:#f4f6f8;        /* tarjetas gris claro */
+  --cyan:#0b6cff;        /* color principal (azul) */
+  --txt:#1a1a1a;         /* texto oscuro */
+  --muted:#5f6b76;       /* texto secundario */
+  --btn:#e6e9ed;         /* botones */
+  --btnActive:#0b6cff;   /* botón activo */
+}
+
     *{box-sizing:border-box}
     body{
       margin:0;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      background: radial-gradient(1200px 500px at 50% -100px, rgba(17,197,217,.25), transparent 60%), var(--bg);
+      background: var(--bg);
       color:var(--txt);
       text-align:center;
     }
