@@ -8,14 +8,14 @@
 
   <style>
     :root{
-  --bg:#ffffff;          /* fondo blanco */
-  --card:#e1e5ea;   /* gris más oscuro pero elegante */
-  --cyan:#0b6cff;        /* color principal (azul) */
-  --txt:#1a1a1a;         /* texto oscuro */
-  --muted:#5f6b76;       /* texto secundario */
-  --btn:#e6e9ed;         /* botones */
-  --btnActive:#0b6cff;   /* botón activo */
-}
+      --bg:#ffffff;          /* fondo blanco */
+      --card:#e1e5ea;        /* gris más oscuro pero elegante */
+      --cyan:#0b6cff;        /* color principal (azul) */
+      --txt:#1a1a1a;         /* texto oscuro */
+      --muted:#5f6b76;       /* texto secundario */
+      --btn:#e6e9ed;         /* botones */
+      --btnActive:#0b6cff;   /* botón activo */
+    }
 
     *{box-sizing:border-box}
     body{
@@ -51,18 +51,18 @@
       transition:transform .08s ease, background .15s ease;
     }
     .btn:active{transform:scale(.98)}
-    .btn.active{background:var(--btnActive); color:#001014}
+    .btn.active{background:var(--btnActive); color:#ffffff}
     .btn.csv{
-      background:linear-gradient(135deg, rgba(17,197,217,.95), rgba(17,197,217,.75));
-      color:#001014;
+      background:linear-gradient(135deg, rgba(11,108,255,.95), rgba(11,108,255,.75));
+      color:#ffffff;
     }
     .cards{
       margin-top:10px;
-      background:linear-gradient(180deg, rgba(255,255,255,.03), transparent);
-      border:1px solid rgba(255,255,255,.06);
+      background:linear-gradient(180deg, rgba(0,0,0,.03), transparent);
+      border:1px solid rgba(0,0,0,.06);
       border-radius:22px;
       padding:18px;
-      box-shadow:0 14px 40px rgba(0,0,0,.45);
+      box-shadow:0 14px 40px rgba(0,0,0,.12);
     }
     .tab{display:none}
     .tab.active{display:block}
@@ -75,8 +75,8 @@
       .grid2{grid-template-columns:1fr}
     }
     .card{
-      background: radial-gradient(900px 320px at 50% 0px, rgba(255,255,255,.06), transparent 65%), var(--card);
-      border:1px solid rgba(255,255,255,.06);
+      background: radial-gradient(900px 320px at 50% 0px, rgba(255,255,255,.55), transparent 65%), var(--card);
+      border:1px solid rgba(0,0,0,.06);
       border-radius:22px;
       padding:16px 14px 10px;
     }
@@ -140,7 +140,7 @@
 
       <div id="tRad" class="tab">
         <div class="card">
-          <h2>Radiómetro</h2>
+          <h2>Radiómetro (%)</h2>
           <canvas id="chRad"></canvas>
         </div>
       </div>
@@ -217,12 +217,12 @@
     if(!res.ok) throw new Error("API error "+res.status);
     const arr = await res.json();
 
-    // si viene asc (por since_id) ya está en orden, si no, la ordenamos
     arr.sort((a,b) => parseRowTime(a) - parseRowTime(b));
     return arr;
   }
 
-  function makeLineChart(canvasId, label, suggestedMax){
+  // ✅ CAMBIO CLAVE: y.min/y.max fijos para escala exacta
+  function makeLineChart(canvasId, label, yMax){
     const ctx = document.getElementById(canvasId).getContext("2d");
     return new Chart(ctx, {
       type: "line",
@@ -241,7 +241,11 @@
         },
         scales: {
           x: { ticks: { maxRotation: 0, autoSkip: true }, grid: { display: false } },
-          y: { beginAtZero: true, suggestedMax, grid: { color: "rgba(255,255,255,.06)" } }
+          y: {
+            min: 0,
+            max: yMax,
+            grid: { color: "rgba(0,0,0,.08)" }
+          }
         }
       }
     });
@@ -250,21 +254,26 @@
   // charts S2
   const chTemp = makeLineChart("chTemp", "Temperatura (°C)", 120);
   const chVolt = makeLineChart("chVolt", "Voltaje (V)", 30);
-  const chCorr = makeLineChart("chCorr", "Corriente (A)", 10);
+
+  // ✅ Corriente 0 a 1.5
+  const chCorr = makeLineChart("chCorr", "Corriente (A)", 1.5);
+
   const chPot  = makeLineChart("chPot",  "Potencia (W)", 200);
-  const chRad  = makeLineChart("chRad",  "Radiómetro", 4096);
+
+  // ✅ Radiómetro 0 a 100
+  const chRad  = makeLineChart("chRad",  "Radiómetro (%)", 100);
 
   // charts WROOM
   const chWv1 = makeLineChart("chWv1", "Voltaje1", 30);
-  const chWc1 = makeLineChart("chWc1", "Corriente1", 10);
+  const chWc1 = makeLineChart("chWc1", "Corriente1 (A)", 1.5);
   const chWp1 = makeLineChart("chWp1", "Potencia1", 200);
 
   const chWv2 = makeLineChart("chWv2", "Voltaje2", 30);
-  const chWc2 = makeLineChart("chWc2", "Corriente2", 10);
+  const chWc2 = makeLineChart("chWc2", "Corriente2 (A)", 1.5);
   const chWp2 = makeLineChart("chWp2", "Potencia2", 200);
 
   const chWv3 = makeLineChart("chWv3", "Voltaje3", 30);
-  const chWc3 = makeLineChart("chWc3", "Corriente3", 10);
+  const chWc3 = makeLineChart("chWc3", "Corriente3 (A)", 1.5);
   const chWp3 = makeLineChart("chWp3", "Potencia3", 200);
 
   const chartsByTab = {
@@ -316,36 +325,30 @@
 
   document.getElementById("btnClear").addEventListener("click", async () => {
     try{
-      // toma el último id actual de cada device para usarlo como corte
       const [s2Latest, wLatest] = await Promise.all([
         fetchDevice("s2", 1, null),
         fetchDevice("wroom", 1, null),
       ]);
 
-      // API viene desc si no usamos since_id, pero igual ordenamos -> el último es el más nuevo
       const lastS2 = s2Latest.length ? s2Latest[s2Latest.length - 1] : null;
       const lastW  = wLatest.length  ? wLatest[wLatest.length  - 1] : null;
 
       sinceIdS2 = lastS2 ? lastS2.id : sinceIdS2;
       sinceIdW  = lastW  ? lastW.id  : sinceIdW;
 
-      // vacía buffers
       bufS2 = [];
       bufW  = [];
 
-      // limpia charts
       [chTemp,chVolt,chCorr,chPot,chRad,chWv1,chWc1,chWp1,chWv2,chWc2,chWp2,chWv3,chWc3,chWp3].forEach(clearChart);
 
-      console.log("Limpiadas. Desde ahora solo se mostrarán datos nuevos. sinceIdS2=", sinceIdS2, "sinceIdW=", sinceIdW);
+      console.log("Limpiadas. Desde ahora solo datos nuevos. sinceIdS2=", sinceIdS2, "sinceIdW=", sinceIdW);
     }catch(e){
       console.log("Error al limpiar:", e);
     }
   });
 
-  // refresh: si sinceId existe, trae SOLO nuevos y los agrega al buffer
   async function refresh(){
     try{
-      // primera carga: llenamos buffer con historial
       if (sinceIdS2 === null || sinceIdW === null){
         const [s2All, wAll] = await Promise.all([
           fetchDevice("s2", 600, null),
@@ -359,7 +362,6 @@
         sinceIdW  = bufW.length  ? bufW[bufW.length  - 1].id : sinceIdW;
 
       } else {
-        // después: solo nuevos
         const [s2New, wNew] = await Promise.all([
           fetchDevice("s2", 300, sinceIdS2),
           fetchDevice("wroom", 300, sinceIdW),
@@ -375,7 +377,6 @@
         }
       }
 
-      // pinta S2
       const labelsS2 = bufS2.map(hourLabel);
       setChart(chTemp, labelsS2, bufS2.map(d => pickNumber(d, ["temperatura"])));
       setChart(chVolt, labelsS2, bufS2.map(d => pickNumber(d, ["voltaje"])));
@@ -383,7 +384,6 @@
       setChart(chPot,  labelsS2, bufS2.map(d => pickNumber(d, ["potencia"])));
       setChart(chRad,  labelsS2, bufS2.map(d => pickNumber(d, ["radiometro"])));
 
-      // pinta WROOM
       const labelsW = bufW.map(hourLabel);
       setChart(chWv1, labelsW, bufW.map(d => pickNumber(d, ["voltaje1"])));
       setChart(chWc1, labelsW, bufW.map(d => pickNumber(d, ["corriente1"])));
@@ -440,7 +440,10 @@
   }
 
   document.getElementById("btnCSV").addEventListener("click", async () => {
-    const [s2, w] = await Promise.all([fetchDevice("s2", 5000, null), fetchDevice("wroom", 5000, null)]);
+    const [s2, w] = await Promise.all([
+      fetchDevice("s2", 5000, null),
+      fetchDevice("wroom", 5000, null)
+    ]);
     const all = [...s2, ...w];
     all.sort((a,b) => parseRowTime(a) - parseRowTime(b));
 
